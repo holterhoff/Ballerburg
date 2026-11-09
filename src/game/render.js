@@ -20,42 +20,102 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
+const canvas = () => {
+  const cv = document.createElement('canvas');
+  cv.width = W;
+  cv.height = H;
+  return cv;
+};
+
 export function createRenderer() {
-  const bg = document.createElement('canvas');
-  bg.width = W;
-  bg.height = H;
-  paintBackground(bg.getContext('2d'));
-  const tc = document.createElement('canvas');
-  tc.width = W;
-  tc.height = H;
+  const bg = canvas();
+  const tc = canvas();
   const tctx = tc.getContext('2d');
-  return { bg, tc, tctx, img: tctx.createImageData(W, H) };
+  const world = canvas();
+  return { bg, sky: null, tc, tctx, img: tctx.createImageData(W, H), world, wctx: world.getContext('2d') };
 }
 
-function paintBackground(c) {
+/**
+ * Burgfehde: times of day. Each has its own sky, a sun or moon, stars or clouds, the colours
+ * of the distant ridges and a light tint laid over castles and terrain.
+ */
+export const SKIES = {
+  morgen: {
+    label: 'Morgen',
+    grad: [[0, '#4a6aa8'], [0.45, '#a99cc8'], [0.75, '#f3b9a4'], [1, '#ffdca6']],
+    stars: 12, sun: { x: 92, y: 236, r: 18, col: '#fff2c8', glow: 'rgba(255, 214, 140, 0.55)' },
+    clouds: 4, cloud: 'rgba(255, 226, 214, 0.75)',
+    ridges: ['#9a7fa6', '#7a6188'], tint: 'rgba(255, 170, 140, 0.10)',
+  },
+  tag: {
+    label: 'Tag',
+    grad: [[0, '#3f7dcb'], [0.55, '#86b9e8'], [1, '#d6ecf8']],
+    stars: 0, sun: { x: 468, y: 64, r: 15, col: '#fffbe6', glow: 'rgba(255, 250, 210, 0.6)' },
+    clouds: 7, cloud: 'rgba(255, 255, 255, 0.9)',
+    ridges: ['#87a6c0', '#6a8aa6'], tint: null,
+  },
+  abend: {
+    label: 'Abend',
+    grad: [[0, '#15122a'], [0.42, '#33234a'], [0.72, '#8e4357'], [1, '#e48f5a']],
+    stars: 110, moon: true,
+    ridges: ['#5a2f52', '#3d2341'], tint: 'rgba(90, 30, 70, 0.10)',
+  },
+  nacht: {
+    label: 'Nacht',
+    grad: [[0, '#04050d'], [0.5, '#0c1230'], [1, '#22284e']],
+    stars: 260, moon: true,
+    ridges: ['#1d2340', '#141a30'], tint: 'rgba(14, 22, 64, 0.42)',
+  },
+};
+export const SKY_KEYS = Object.keys(SKIES);
+/** Choices for menus: the four times of day plus a random one per game. */
+export const TIME_CHOICES = [...SKY_KEYS.map((k) => [k, SKIES[k].label]), ['zufall', 'Zufall']];
+
+function paintBackground(c, key) {
+  const sky = SKIES[key] || SKIES.abend;
   const g = c.createLinearGradient(0, 0, 0, H);
-  g.addColorStop(0, '#15122a');
-  g.addColorStop(0.42, '#33234a');
-  g.addColorStop(0.72, '#8e4357');
-  g.addColorStop(1, '#e48f5a');
+  for (const [at, col] of sky.grad) g.addColorStop(at, col);
   c.fillStyle = g;
   c.fillRect(0, 0, W, H);
-  for (let i = 0; i < 110; i++) {
+  for (let i = 0; i < sky.stars; i++) {
     const x = Math.floor(hash(i, 7) * W);
     const y = Math.floor(hash(i, 13) * H * 0.55);
     c.fillStyle = `rgba(255, 244, 220, ${0.25 + 0.6 * (1 - y / (H * 0.55)) * hash(i, 3)})`;
     c.fillRect(x, y, 1, 1);
   }
-  c.fillStyle = '#f3e3bd';
-  c.beginPath();
-  c.arc(548, 54, 15, 0, Math.PI * 2);
-  c.fill();
-  c.fillStyle = '#dcc79c';
-  [[542, 50, 3], [553, 59, 2], [550, 46, 1.5]].forEach(([x, y, r]) => {
+  if (sky.sun) {
+    const { x, y, r, col, glow } = sky.sun;
+    const halo = c.createRadialGradient(x, y, r * 0.5, x, y, r * 4);
+    halo.addColorStop(0, glow);
+    halo.addColorStop(1, 'rgba(255, 255, 255, 0)');
+    c.fillStyle = halo;
+    c.fillRect(x - r * 4, y - r * 4, r * 8, r * 8);
+    c.fillStyle = col;
     c.beginPath();
     c.arc(x, y, r, 0, Math.PI * 2);
     c.fill();
-  });
+  }
+  if (sky.moon) {
+    c.fillStyle = '#f3e3bd';
+    c.beginPath();
+    c.arc(548, 54, 15, 0, Math.PI * 2);
+    c.fill();
+    c.fillStyle = '#dcc79c';
+    [[542, 50, 3], [553, 59, 2], [550, 46, 1.5]].forEach(([x, y, r]) => {
+      c.beginPath();
+      c.arc(x, y, r, 0, Math.PI * 2);
+      c.fill();
+    });
+  }
+  // pixel clouds: a few overlapping blocks per cloud
+  for (let i = 0; i < (sky.clouds || 0); i++) {
+    const cx = Math.floor(hash(i, 41) * (W - 80)) + 20, cy = 24 + Math.floor(hash(i, 43) * 120);
+    const len = 24 + Math.floor(hash(i, 47) * 40);
+    c.fillStyle = sky.cloud;
+    c.fillRect(cx, cy, len, 5);
+    c.fillRect(cx + 5, cy - 3, len - 12, 3);
+    c.fillRect(cx + len * 0.3, cy - 6, len * 0.3, 3);
+  }
   const ridge = (base, amp, f, col, seed) => {
     c.fillStyle = col;
     for (let x = 0; x < W; x++) {
@@ -63,8 +123,8 @@ function paintBackground(c) {
       c.fillRect(x, Math.round(y), 1, H - Math.round(y));
     }
   };
-  ridge(H * 0.66, 26, 0.013, '#5a2f52', 1.3);
-  ridge(H * 0.76, 18, 0.021, '#3d2341', 4.1);
+  ridge(H * 0.66, 26, 0.013, sky.ridges[0], 1.3);
+  ridge(H * 0.76, 18, 0.021, sky.ridges[1], 4.1);
 }
 
 export function refreshTerrain(r, game) {
@@ -76,7 +136,31 @@ export function refreshTerrain(r, game) {
       const o = i * 4;
       const t = s[i];
       if (!t) {
-        d[o + 3] = 0;
+        const room = game.interior ? game.interior[i] : 0;
+        if (!room) {
+          d[o + 3] = 0;
+          continue;
+        }
+        // Burgfehde: back wall of a hollow room — dim masonry, shadow under the ceiling,
+        // a wooden floor and warm torchlight, so chambers blend into the castle.
+        const C = BRICK_COLORS[room - 1];
+        let R, G, B;
+        if (y < H - 1 && s[i + W]) [R, G, B] = (x & 7) === 7 ? [62, 40, 24] : [112, 76, 44];
+        else {
+          const row = y >> 2;
+          const off = (row & 1) * 4;
+          const mortar = (y & 3) === 3 || ((x + off) & 7) === 7;
+          const base = mortar ? C.m : hash((x + off) >> 3, row) < 0.5 ? C.a : C.b;
+          let up = 0;
+          while (up < 6 && y - up - 1 >= 0 && !s[i - (up + 1) * W]) up++;
+          let k = (mortar ? 0.36 : 0.46) * (0.55 + 0.45 * (up / 6));
+          if ((x > 0 && s[i - 1]) || (x < W - 1 && s[i + 1])) k *= 0.78;
+          [R, G, B] = [base[0] * k + 22, base[1] * k + 10, base[2] * k];
+        }
+        d[o] = R;
+        d[o + 1] = G;
+        d[o + 2] = B;
+        d[o + 3] = 255;
         continue;
       }
       let R, G, B;
@@ -263,7 +347,7 @@ function drawVane(c, x, y, pal, wind, t) {
   }
 }
 
-function drawMine(c, x, y, t) {
+function drawMine(c, x, y, t, damage = 0) {
   c.fillStyle = '#7a5230';
   line(c, x + 1, y + 23, x + 7, y + 3);
   line(c, x + 14, y + 23, x + 8, y + 3);
@@ -273,26 +357,59 @@ function drawMine(c, x, y, t) {
   line(c, x + 12, y + 16, x + 5, y + 9);
   c.fillStyle = '#3b2a1e';
   px(c, x + 5, y + 1, 6, 1);
-  const spin = Math.floor(t * 4) % 2;
   c.fillStyle = '#c9c4b8';
-  px(c, x + 6, y, 4, 4);
-  c.fillStyle = '#3b2a1e';
-  px(c, x + 7 + spin, y + 1, 1, 2);
-  c.fillStyle = '#f2c94c';
+  if (damage) {
+    // damaged: the wheel stands still, a piece is missing and the rope hangs loose
+    px(c, x + 6, y, 3, 4);
+    px(c, x + 9, y + 2, 1, 2);
+    c.fillStyle = '#8f8a80';
+    px(c, x + 6, y + 3, 1, 1);
+    c.fillStyle = '#3b2a1e';
+    px(c, x + 7, y + 1, 1, 2);
+    px(c, x + 8, y + 2, 1, 1);
+    c.fillStyle = '#c9c4b8';
+    px(c, x + 10, y + 4, 1, 1);
+    c.fillStyle = '#d8d2c0';
+    line(c, x + 9, y + 4, x + 9, y + 10);
+    px(c, x + (Math.floor(t * 2) % 2 ? 10 : 8), y + 10, 1, 1);
+  } else {
+    px(c, x + 6, y, 4, 4);
+    c.fillStyle = '#3b2a1e';
+    px(c, x + 7 + (Math.floor(t * 4) % 2), y + 1, 1, 2);
+  }
+  c.fillStyle = damage ? '#b38a3a' : '#f2c94c';
   px(c, x + 7, y + 19, 2, 2);
   c.fillStyle = '#5a4436';
   px(c, x + 6, y + 21, 4, 3);
 }
 
+/** A bulging powder keg: lid, staves, two iron hoops, a highlight and some spilled powder. */
 function drawKeg(c, x, y) {
-  c.fillStyle = '#7b4a26';
-  px(c, x + 1, y, 6, 8);
-  px(c, x, y + 1, 8, 6);
-  c.fillStyle = '#3a3a40';
+  c.fillStyle = '#5c361b';
+  px(c, x + 1, y, 6, 1);
+  c.fillStyle = '#b07a42';
+  px(c, x + 2, y, 4, 1);
+  c.fillStyle = '#8a5530';
+  px(c, x + 1, y + 1, 6, 1);
+  px(c, x + 1, y + 6, 6, 1);
+  c.fillStyle = '#9a6234';
+  px(c, x, y + 3, 8, 2);
+  c.fillStyle = '#6e4222';
+  px(c, x + 2, y + 1, 1, 6);
+  px(c, x + 5, y + 1, 1, 6);
+  c.fillStyle = '#c99158';
+  px(c, x + 1, y + 3, 1, 2);
+  c.fillStyle = '#44444c';
   px(c, x, y + 2, 8, 1);
   px(c, x, y + 5, 8, 1);
+  c.fillStyle = '#9a9aa6';
+  px(c, x + 1, y + 2, 1, 1);
+  px(c, x + 1, y + 5, 1, 1);
   c.fillStyle = '#5c361b';
-  px(c, x + 4, y, 1, 8);
+  px(c, x + 2, y + 7, 4, 1);
+  // a few grains of black powder spilled at the foot of the keg
+  c.fillStyle = '#26232a';
+  px(c, x + 6, y + 7, 1, 1);
 }
 
 function drawBall(c, x, y) {
@@ -311,7 +428,13 @@ function drawChamber(c, o, kind, amount, t) {
   const [cw, ch, unit] = STORE_CELL[kind];
   const cols = Math.floor(o.w / cw), rows = Math.floor(o.h / ch);
   const count = Math.max(0, Math.min(cols * rows, Math.ceil(amount / unit)));
-  c.fillStyle = 'rgba(18, 12, 22, 0.6)';
+  // flickering torchlight in the chamber (the room's back wall is part of the terrain layer)
+  const glow = c.createRadialGradient(o.x + o.w / 2, o.y + 2, 1, o.x + o.w / 2, o.y + 2, Math.max(o.w, o.h) * 0.8);
+  // the powder room gets a reddish warning lantern, the others warm torchlight
+  const [lr, lg, lb] = kind === 'powder' ? [255, 110, 70] : [255, 190, 110];
+  glow.addColorStop(0, `rgba(${lr}, ${lg}, ${lb}, ${(kind === 'powder' ? 0.28 : 0.2) + 0.05 * Math.sin(t * 9 + o.x)})`);
+  glow.addColorStop(1, `rgba(${lr}, ${lg}, ${lb}, 0)`);
+  c.fillStyle = glow;
   c.fillRect(o.x, o.y, o.w, o.h);
   for (let i = 0; i < count; i++) {
     const col = i % cols, row = Math.floor(i / cols);
@@ -333,7 +456,7 @@ export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = fals
     case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
     case 'gold': return stock ? drawChamber(c, o, 'gold', stock.money, t) : drawGold(c, x, y, t);
     case 'vane': return drawVane(c, x, y, pal, wind, t);
-    case 'mine': return drawMine(c, x, y, t);
+    case 'mine': return drawMine(c, x, y, t, o.damage || 0);
   }
 }
 
@@ -344,7 +467,16 @@ export function drawScene(c, game, r, view) {
   if (game.terrainDirty) refreshTerrain(r, game);
   c.save();
   if (game.shake > 0.2) c.translate(Math.round((Math.random() - 0.5) * game.shake), Math.round((Math.random() - 0.5) * game.shake));
+  const skyKey = game.sky || 'abend';
+  if (r.sky !== skyKey) {
+    paintBackground(r.bg.getContext('2d'), skyKey);
+    r.sky = skyKey;
+  }
   c.drawImage(r.bg, 0, 0);
+  // terrain, castles and objects go to a separate layer so the time-of-day light only tints them
+  const sky = c;
+  c = r.wctx;
+  c.clearRect(0, 0, W, H);
   c.drawImage(r.tc, 0, 0);
 
   const sel = game.obj(game.selected);
@@ -364,6 +496,15 @@ export function drawScene(c, game, r, view) {
     const angle = isSel && view.aim ? view.aim.angle : o.aim.angle;
     drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner] });
   }
+  const tint = SKIES[skyKey]?.tint;
+  if (tint) {
+    c.globalCompositeOperation = 'source-atop';
+    c.fillStyle = tint;
+    c.fillRect(0, 0, W, H);
+    c.globalCompositeOperation = 'source-over';
+  }
+  c = sky;
+  c.drawImage(r.world, 0, 0);
 
   const pr = game.projectile;
   if (pr) {
@@ -377,10 +518,52 @@ export function drawScene(c, game, r, view) {
     c.fillRect((pr.x | 0) - 1, (pr.y | 0) - 1, 1, 1);
   }
 
+  // Burgfehde: fireball inside a hit store room (drawn under the flying debris)
+  for (const b of game.blasts || []) {
+    const k = b.t / b.life;
+    const big = b.kind === 'powder';
+    c.save();
+    c.beginPath();
+    c.rect(b.x - (big ? 6 : 1), b.y - (big ? 10 : 1), b.w + (big ? 12 : 2), b.h + (big ? 12 : 2));
+    c.clip();
+    const cx = b.x + b.w / 2, cy = b.y + b.h / 2;
+    const r = Math.max(b.w, b.h) * (0.4 + k * (big ? 1.1 : 0.7));
+    const g = c.createRadialGradient(cx, cy, 0, cx, cy, r);
+    const a = Math.max(0, 1 - k);
+    g.addColorStop(0, `rgba(255, 252, 220, ${a})`);
+    g.addColorStop(0.35, `rgba(255, ${big ? 170 : 200}, 70, ${0.9 * a})`);
+    g.addColorStop(0.75, `rgba(200, 70, 30, ${0.6 * a})`);
+    g.addColorStop(1, 'rgba(60, 30, 30, 0)');
+    c.fillStyle = g;
+    c.fillRect(b.x - 8, b.y - 12, b.w + 16, b.h + 16);
+    // licking flames rising from the floor
+    if (k < 0.8) {
+      c.fillStyle = `rgba(255, 140, 40, ${0.8 * (1 - k)})`;
+      for (let x = b.x; x < b.x + b.w; x += 2) {
+        const hgt = (Math.sin(x * 1.7 + b.t * 30) * 0.5 + 0.5) * b.h * (1 - k) * 0.8;
+        c.fillRect(x, b.y + b.h - hgt, 1, hgt);
+      }
+    }
+    c.restore();
+  }
+
   for (const p of game.particles) {
+    const s = p.s || 1;
+    if (p.smoke) {
+      const k = Math.min(1, p.life / 2);
+      c.globalAlpha = 0.45 * k;
+      c.fillStyle = p.col;
+      const r = s + (1 - k) * 4;
+      c.fillRect((p.x - r / 2) | 0, (p.y - r / 2) | 0, r | 0, r | 0);
+      continue;
+    }
     c.globalAlpha = Math.min(1, p.life * 1.5);
-    c.fillStyle = p.col;
-    c.fillRect(p.x | 0, p.y | 0, 1, 1);
+    c.fillStyle = p.glint && Math.sin(p.life * 40) > 0.6 ? '#ffffff' : p.col;
+    c.fillRect(p.x | 0, p.y | 0, s, s);
+    if (p.ball) {
+      c.fillStyle = '#7d808a';
+      c.fillRect(p.x | 0, p.y | 0, 1, 1);
+    }
   }
   c.globalAlpha = 1;
 
@@ -424,7 +607,8 @@ export function drawCastlePreview(canvas, built, side, stock = null) {
   c.fillStyle = g;
   c.fillRect(0, 0, w, h);
   const ox = side === 0 ? 0 : W - w;
-  const fake = { solid: new Uint8Array(W * H), heights: new Float32Array(W).fill(H) };
+  const fake = { solid: new Uint8Array(W * H), interior: new Uint8Array(W * H), heights: new Float32Array(W).fill(H) };
+  for (const [x, y] of built.rooms || []) if (x >= 0 && x < W && y >= 0 && y < H) fake.interior[y * W + x] = side + 1;
   // the castle is built standing on y = H - 10 (see CastlePicker), so no shift is needed
   const shift = 0;
   for (const [x, y, m] of built.pixels) {

@@ -41,6 +41,11 @@ const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
 const MAX_MINES = 5;
 const MINE_LIMIT_X = 265;
+/** Burgfehde: a shaft tower survives the first hit; the notch it cuts is 2 px wider on each side. */
+const MINE_HITS = 2;
+/** Burgfehde: the times of day (sky looks live in render.js). */
+export const TIMES = ['morgen', 'tag', 'abend', 'nacht'];
+const MINE_NOTCH = 2;
 /** Original: bricks can only be laid below y = 155. */
 const BUILD_MIN_Y = 155;
 /** Burgfehde: bricks are 8×4 pixels like the masonry pattern, and may be laid up to 40 px in front of the castle. */
@@ -77,6 +82,8 @@ export const DEFAULT_OPTIONS = {
   allowBuilding: true,
   /** Burgfehde test mode: laying bricks costs nothing. Set to false for the original price. */
   freeBuilding: true,
+  /** Burgfehde: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
+  timeOfDay: 'zufall',
   /** Burgfehde extensions, all off by default so the game plays like the original. */
   extensions: { landslides: false, falling: false },
 };
@@ -116,9 +123,12 @@ export class Game {
   newGame(cfg) {
     const widths = cfg.players.map((pc) => CASTLES[pc.castle].width);
     const terrain = cfg.terrainData || generateTerrain(cfg.terrain || 'klassisch', widths);
+    this.sky = this.pickSky();
     this.heights = Float32Array.from(terrain.heights);
     this.baseY = terrain.baseY.slice();
     this.solid = new Uint8Array(W * H);
+    /** Burgfehde: hollow castle rooms (side + 1), drawn with a back wall instead of sky. */
+    this.interior = new Uint8Array(W * H);
     for (let x = 0; x < W; x++)
       for (let y = Math.max(0, Math.ceil(this.heights[x])); y < H; y++) this.solid[y * W + x] = EARTH;
 
@@ -128,6 +138,7 @@ export class Game {
       const c = CASTLES[pc.castle];
       const built = buildCastle(pc.castle, i, this.baseY[i]);
       for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) this.solid[y * W + x] = m;
+      for (const [x, y] of built.rooms) if (x >= 0 && x < W && y >= 0 && y < H) this.interior[y * W + x] = i + 1;
       built.objects.forEach((o) => this.addObject(o.type, i, o.x, o.y, o.w, o.h));
       return {
         idx: i, name: pc.name, type: pc.type, castle: pc.castle,
@@ -149,6 +160,8 @@ export class Game {
     this.projectile = null;
     this.particles = [];
     this.flashes = [];
+    /** Burgfehde: explosions inside a hit store room. */
+    this.blasts = [];
     this.blasts = [];
     this.phase = 'idle';
     this.winner = null;
@@ -433,7 +446,7 @@ export class Game {
         if (Math.random() < 0.5 && inCastle && pl.pop) pl.pop--;
         for (const o of this.objectsOf(side)) {
           if (o.type === 'cannon' && this.near(o, x, y, 2)) this.destroy(o, by);
-          else if (o.type === 'mine' && this.near(o, x, y, 2)) { this.destroy(o, by); stop = true; }
+          else if (o.type === 'mine' && this.near(o, x, y, 2)) { this.hitMine(o, by); stop = true; }
           else if (o.type === 'vane' && this.near(o, x, y, 3)) this.destroy(o, by);
           else if (o.type === 'king' && this.near(o, x, y, 3)) { this.destroy(o, by); stop = true; }
           else if (CHAMBERS.includes(o.type) && this.near(o, x, y, 3)) { this.hitChamber(o, by); stop = true; }
@@ -482,6 +495,19 @@ export class Game {
     this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${cause === 'fall' ? 'stürzt ab' : 'zerstört'}${own}.`, 'hit');
   }
 
+  /**
+   * Burgfehde: a shaft tower takes MINE_HITS hits. Every hit but the last only damages it
+   * (broken wheel); the original destroyed it at once.
+   */
+  hitMine(o, by) {
+    o.damage = (o.damage || 0) + 1;
+    if (o.damage >= MINE_HITS) { this.destroy(o, by); return; }
+    if (by !== undefined && by !== o.owner) this.players[by].hits++;
+    this.burst(o, 6);
+    const own = by === o.owner ? ' (eigener Treffer)' : '';
+    this.say(`Förderturm von ${this.players[o.owner].name} beschädigt, das Rad ist gebrochen${own}.`, 'hit');
+  }
+
   /** Original: store rooms are part of the castle; a hit costs up to 200 gold, all powder or 2 balls. */
   hitChamber(o, by) {
     const owner = this.players[o.owner];
@@ -491,17 +517,55 @@ export class Game {
     if (o.type === 'gold') {
       const loss = Math.min(200, owner.money);
       owner.money -= loss;
+      this.chamberBlast(o, 'gold', 4 + Math.ceil(loss / 150) * 8);
       this.say(`Treffer in der Schatzkammer von ${owner.name}: ${loss} Gold verloren${own}.`, 'hit');
     } else if (o.type === 'powder') {
       const lost = owner.powder;
       owner.powder = 0;
+      this.chamberBlast(o, 'powder', 6 + Math.ceil(lost / 30) * 6);
       this.say(`Die Pulverkammer von ${owner.name} fliegt in die Luft: ${lost} Pulver verloren${own}.`, 'hit');
       this.flashes.push({ x: o.x + o.w / 2, y: o.y + o.h / 2, r: 30, t: 0, life: 0.7 });
       this.shake = Math.min(9, this.shake + 4);
     } else {
       const lost = Math.min(2, owner.balls);
       owner.balls -= lost;
+      this.chamberBlast(o, 'balls', lost);
       this.say(`Treffer in der Kugelkammer von ${owner.name}: ${lost} Kugeln verloren${own}.`, 'hit');
+    }
+  }
+
+  /**
+   * Burgfehde: a hit store room explodes visibly — a fireball inside the chamber, smoke,
+   * and the lost goods (coins, keg staves, cannonballs) flying out.
+   */
+  chamberBlast(o, kind, items) {
+    const big = kind === 'powder';
+    this.blasts.push({ x: o.x, y: o.y, w: o.w, h: o.h, kind, t: 0, life: big ? 1.4 : 0.9 });
+    const cx = o.x + o.w / 2, cy = o.y + o.h / 2;
+    const spray = (col, size, speed, n, extra = {}) => {
+      for (let i = 0; i < n && this.particles.length < 900; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 2.4;
+        const v = speed * (0.4 + Math.random() * 0.8);
+        this.particles.push({ x: cx + (Math.random() - 0.5) * o.w * 0.6, y: cy + (Math.random() - 0.5) * o.h * 0.4, vx: Math.cos(a) * v, vy: Math.sin(a) * v, life: 1 + Math.random() * 1.2, col: typeof col === 'function' ? col(i) : col, s: size, ...extra });
+      }
+    };
+    const smoke = (n, dark) => {
+      for (let i = 0; i < n && this.particles.length < 900; i++)
+        this.particles.push({ x: cx + (Math.random() - 0.5) * o.w, y: cy + (Math.random() - 0.5) * o.h, vx: (Math.random() - 0.5) * 18, vy: -12 - Math.random() * 18, life: 1.2 + Math.random() * 1.4, col: dark ? '#2a2628' : '#6d6668', s: 2, smoke: true });
+    };
+    if (kind === 'gold') {
+      spray((i) => (i % 3 ? '#ffd23f' : '#fff3a6'), 2, 150, items, { glint: true });
+      smoke(8, false);
+    } else if (kind === 'powder') {
+      spray((i) => ['#7b4a26', '#5c361b', '#3a3a40'][i % 3], 2, 210, items);
+      spray((i) => (i % 2 ? '#ffb347' : '#fff0a8'), 1, 240, 30);
+      smoke(26, true);
+      this.flashes.push({ x: cx, y: cy, r: 46, t: 0, life: 0.9 });
+      this.shake = Math.min(12, this.shake + 6);
+    } else {
+      spray('#25252c', 3, 130, Math.max(1, items), { ball: true });
+      spray('#c9c4b8', 1, 160, 10);
+      smoke(8, false);
     }
   }
 
@@ -561,13 +625,34 @@ export class Game {
     const offset = p.width + 8 + mines * 22;
     if (offset + w > MINE_LIMIT_X) return null;
     const x = p.idx === 0 ? offset : W - offset - w;
-    let top = H;
+    // Burgfehde: the tower stands on the lowest ground under its footprint and cuts a level
+    // notch into the slope (earth only), instead of floating in front of a steep mountain.
+    let base = 0;
     for (let i = x; i < x + w; i++) {
       let y = 0;
       while (y < H && !this.isSolid(i, y)) y++;
-      top = Math.min(top, y);
+      base = Math.max(base, y);
     }
-    return top - h >= 0 ? { x, y: top - h } : null;
+    const y = base - h;
+    if (y < 0) return null;
+    const nx = x - MINE_NOTCH, nw = w + 2 * MINE_NOTCH;
+    for (let j = y; j < base; j++)
+      for (let i = nx; i < nx + nw; i++) {
+        if (i < 0 || i >= W) continue;
+        const t = this.solid[j * W + i];
+        if (t && t !== EARTH) return null; // never dig into walls or bricks
+      }
+    for (const o of this.objects)
+      if (o.alive && o.x < nx + nw && o.x + o.w > nx && o.y < base && o.y + o.h > y) return null;
+    return { x, y, notch: { x: nx, y, w: nw, h: base - y } };
+  }
+
+  /** Clear the earth of a mine notch so the tower sits in the slope. */
+  digNotch(n) {
+    for (let j = n.y; j < n.y + n.h; j++)
+      for (let i = n.x; i < n.x + n.w; i++)
+        if (i >= 0 && i < W && this.solid[j * W + i] === EARTH) this.solid[j * W + i] = 0;
+    this.terrainDirty = true;
   }
 
   /** Original: market items are greyed out when unaffordable or not possible. */
@@ -599,6 +684,7 @@ export class Game {
         break;
       case 'mine': {
         const s = this.nextMineSpot(p);
+        this.digNotch(s.notch);
         this.addObject('mine', p.idx, s.x, s.y);
         break;
       }
@@ -806,8 +892,16 @@ export class Game {
     this.emit();
   }
 
+  /** Burgfehde: the sky for this game, from the time-of-day option. */
+  pickSky() {
+    const t = this.options.timeOfDay;
+    return TIMES.includes(t) ? t : TIMES[rnd(TIMES.length)];
+  }
+
   setOptions(o) {
+    const before = this.options.timeOfDay;
     this.options = { ...this.options, ...o, extensions: { ...this.options.extensions, ...(o.extensions || {}) } };
+    if (this.options.timeOfDay !== before) this.sky = this.pickSky();
     this.emit();
   }
 
@@ -816,6 +910,13 @@ export class Game {
   update(dt) {
     dt = Math.min(dt, 0.05);
     for (const pt of this.particles) {
+      if (pt.smoke) {
+        pt.vy *= Math.pow(0.5, dt);
+        pt.x += pt.vx * dt;
+        pt.y += pt.vy * dt;
+        pt.life -= dt;
+        continue;
+      }
       pt.vy += 220 * dt;
       pt.x += pt.vx * dt;
       pt.y += pt.vy * dt;
@@ -824,6 +925,8 @@ export class Game {
     }
     this.particles = this.particles.filter((pt) => pt.life > 0 && pt.y < H + 4);
     for (const fl of this.flashes) fl.t += dt;
+    for (const b of this.blasts) b.t += dt;
+    this.blasts = this.blasts.filter((b) => b.t < b.life);
     this.flashes = this.flashes.filter((fl) => fl.t < fl.life);
     this.shake = this.shake > 0.1 ? this.shake * Math.pow(0.02, dt) : 0;
 

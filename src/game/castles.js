@@ -48,7 +48,7 @@ export const CASTLES = {
   falkenstein: {
     name: 'Falkenstein',
     desc: 'Ausgewogen: Bergfried mit Geschütz, große Schatzkammer, der König tief in der Thronhalle.',
-    start: { money: 300, powder: 150, balls: 8, pop: 200 },
+    start: { money: 400, powder: 160, balls: 8, pop: 240 },
     ...design(150, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 150, 10);
       wall(0, 10, 32, 76);
@@ -72,7 +72,7 @@ export const CASTLES = {
   bollwerk: {
     name: 'Bollwerk',
     desc: 'Breiter Wall mit vier Geschützen und großem Kugellager, aber kleiner Schatzkammer.',
-    start: { money: 270, powder: 120, balls: 12, pop: 230 },
+    start: { money: 450, powder: 160, balls: 12, pop: 330 },
     ...design(160, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 160, 12);
       wall(0, 12, 160, 40);
@@ -98,7 +98,7 @@ export const CASTLES = {
   hochwacht: {
     name: 'Hochwacht',
     desc: 'Ein schlanker Turm schießt über jeden Berg, davor eine gedrungene Halle mit gut gefüllter Schatzkammer.',
-    start: { money: 550, powder: 100, balls: 8, pop: 250 },
+    start: { money: 480, powder: 100, balls: 8, pop: 220 },
     ...design(126, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 126, 8);
       wall(8, 8, 34, 112);
@@ -120,25 +120,25 @@ export const CASTLES = {
   },
   stufenburg: {
     name: 'Stufenburg',
-    desc: 'Festung für den langen Krieg: vier Geschütze auf Terrassen, riesige Pulverkammer, wenig Gold.',
-    start: { money: 300, powder: 200, balls: 12, pop: 220 },
-    ...design(172, ({ wall, roof, room, merlons }) => {
+    desc: 'Festung für den langen Krieg: fünf Geschütze auf Terrassen und dem Turm, riesige Pulverkammer, wenig Gold.',
+    start: { money: 300, powder: 240, balls: 12, pop: 420 },
+    ...design(172, ({ wall, room, merlons }) => {
       wall(0, 0, 172, 12);
       wall(0, 12, 142, 24);
       wall(100, 24, 142, 30);
       wall(0, 24, 102, 40);
       wall(0, 40, 58, 60);
       wall(58, 40, 100, 62);
-      wall(8, 60, 30, 86);
-      roof(gable(8, 30, 86, 20));
+      wall(8, 60, 30, 90);
+      merlons(8, 30, 90, 8, [[12, 26]]);
       room(66, 12, 84, 28);
       room(4, 12, 40, 30);
       room(40, 42, 56, 52);
       room(102, 12, 138, 24);
       merlons(142, 172, 12, 8, [[148, 164]]);
       return {
-        cannons: [[151, 12], [115, 30], [80, 62], [38, 60]],
-        king: [69, 12], vane: [17, 104],
+        cannons: [[151, 12], [115, 30], [80, 62], [38, 60], [13, 90]],
+        king: [69, 12], vane: [32, 60],
         gold: [40, 42, 16, 10], powder: [4, 12, 36, 18], balls: [102, 12, 36, 12],
       };
     }),
@@ -146,7 +146,7 @@ export const CASTLES = {
   zwillingsburg: {
     name: 'Zwillingsburg',
     desc: 'Zwei Türme mit Spitzdächern: links das Pulver, rechts die Kugeln, dazwischen Schatz und König.',
-    start: { money: 540, powder: 100, balls: 8, pop: 240 },
+    start: { money: 600, powder: 120, balls: 8, pop: 290 },
     ...design(162, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 162, 10);
       wall(0, 10, 26, 80);
@@ -174,7 +174,7 @@ export const CASTLES = {
   schatzburg: {
     name: 'Schatzburg',
     desc: 'Reich: eine riesige Schatzkammer im Palas, aber nur zwei Geschütze und ein kleines Kugellager.',
-    start: { money: 480, powder: 120, balls: 6, pop: 300 },
+    start: { money: 550, powder: 130, balls: 6, pop: 320 },
     ...design(186, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 186, 16);
       wall(0, 16, 122, 50);
@@ -194,6 +194,336 @@ export const CASTLES = {
       };
     }),
   },
+  kanonenfeste: {
+    name: 'Kanonenfeste',
+    desc: 'Sieben Geschütze auf einem langen Wall und dem Bergfried, aber wenig Volk und Gold.',
+    start: { money: 200, powder: 110, balls: 10, pop: 160 },
+    ...design(190, ({ wall, room, merlons }) => {
+      wall(0, 0, 190, 12);
+      wall(0, 12, 190, 36);
+      wall(76, 36, 124, 62);
+      room(4, 12, 28, 32);
+      room(44, 12, 78, 30);
+      room(91, 12, 109, 30);
+      room(122, 12, 170, 24);
+      merlons(0, 76, 36, 8, [[7, 21], [25, 39], [49, 63]]);
+      merlons(124, 190, 36, 8, [[129, 143], [149, 163], [169, 183]]);
+      merlons(76, 124, 62, 8, [[81, 87], [99, 113]]);
+      return {
+        cannons: [[8, 36], [26, 36], [50, 36], [130, 36], [150, 36], [170, 36], [100, 62]],
+        king: [94, 12], vane: [82, 62],
+        gold: [4, 12, 24, 20], powder: [44, 12, 34, 18], balls: [122, 12, 48, 12],
+      };
+    }),
+  },
+  kolossburg: {
+    name: 'Kolossburg',
+    desc: 'Das Maximum: acht Geschütze, zwei Türme, Palas mit Wehrgang, riesige Schatz-, Pulver- und Kugelkammern.',
+    start: { money: 210, powder: 100, balls: 8, pop: 165 },
+    ...design(196, ({ wall, room, merlons }) => {
+      wall(0, 0, 196, 14);
+      wall(0, 14, 196, 44);
+      wall(0, 44, 24, 96);
+      wall(172, 44, 196, 90);
+      wall(70, 44, 130, 74);
+      room(26, 14, 74, 34);
+      room(91, 14, 109, 32);
+      room(124, 14, 170, 32);
+      room(3, 48, 21, 84);
+      merlons(24, 70, 44, 8, [[27, 41], [47, 61]]);
+      merlons(130, 172, 44, 8, [[133, 147], [153, 167]]);
+      merlons(0, 24, 96, 8, [[5, 19]]);
+      merlons(172, 196, 90, 8, [[177, 191]]);
+      merlons(70, 130, 74, 8, [[77, 91], [95, 101], [109, 123]]);
+      return {
+        cannons: [[28, 44], [48, 44], [134, 44], [154, 44], [6, 96], [178, 90], [78, 74], [110, 74]],
+        king: [94, 14], vane: [96, 74],
+        gold: [26, 14, 48, 20], powder: [3, 48, 18, 36], balls: [124, 14, 46, 18],
+      };
+    }),
+  },
+  felsennest: {
+    name: 'Felsennest',
+    desc: 'Ein mächtiger Wohnturm, 120 Schritt hoch: zwei Geschütze ganz oben, zwei auf dem Vorwerk.',
+    start: { money: 250, powder: 100, balls: 8, pop: 160 },
+    ...design(112, ({ wall, room, merlons }) => {
+      wall(0, 0, 112, 10);
+      wall(0, 10, 60, 120);
+      wall(60, 10, 112, 40);
+      room(21, 10, 39, 28);
+      room(6, 60, 30, 80);
+      room(34, 60, 52, 78);
+      room(64, 10, 100, 22);
+      merlons(0, 60, 120, 8, [[7, 21], [35, 49], [51, 57]]);
+      merlons(60, 112, 40, 8, [[69, 83], [91, 105]]);
+      return {
+        cannons: [[8, 120], [36, 120], [70, 40], [92, 40]],
+        king: [24, 10], vane: [52, 120],
+        gold: [6, 60, 24, 20], powder: [34, 60, 18, 18], balls: [64, 10, 36, 12],
+      };
+    }),
+  },
+  speicherburg: {
+    name: 'Speicherburg',
+    desc: 'Ein riesiges Lagerhaus mit gewaltigen Kammern für Gold, Pulver und Kugeln, aber nur zwei Geschütze.',
+    start: { money: 415, powder: 115, balls: 10, pop: 195 },
+    ...design(190, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 190, 12);
+      wall(0, 12, 150, 58);
+      roof(gable(0, 150, 58, 24));
+      wall(150, 12, 190, 80);
+      room(4, 14, 52, 44);
+      room(67, 12, 85, 30);
+      room(97, 14, 142, 41);
+      room(154, 14, 184, 38);
+      merlons(150, 190, 80, 8, [[150, 156], [155, 169], [173, 187]]);
+      return {
+        cannons: [[156, 80], [174, 80]],
+        king: [70, 12], vane: [151, 80],
+        gold: [4, 14, 48, 30], powder: [97, 14, 45, 27], balls: [154, 14, 30, 24],
+      };
+    }),
+  },
+  bastei: {
+    name: 'Bastei',
+    desc: 'Flach und breit, kaum zu treffen: sechs Geschütze auf dem Erdwall, der König unter dem Hügel.',
+    start: { money: 285, powder: 120, balls: 11, pop: 190 },
+    ...design(180, ({ wall, room, merlons }) => {
+      wall(0, 0, 180, 14);
+      wall(0, 14, 180, 40);
+      wall(64, 40, 116, 60);
+      room(4, 14, 31, 32);
+      room(34, 14, 58, 34);
+      room(81, 14, 99, 32);
+      room(112, 14, 160, 26);
+      merlons(0, 64, 40, 8, [[5, 19], [27, 41], [45, 59]]);
+      merlons(116, 180, 40, 8, [[123, 137], [143, 157], [163, 177]]);
+      merlons(64, 116, 60, 8, [[87, 93]]);
+      return {
+        cannons: [[6, 40], [28, 40], [46, 40], [124, 40], [144, 40], [164, 40]],
+        king: [84, 14], vane: [88, 60],
+        gold: [34, 14, 24, 20], powder: [4, 14, 27, 18], balls: [112, 14, 48, 12],
+      };
+    }),
+  },
+  abtei: {
+    name: 'Abtei',
+    desc: 'Kirchenschiff mit Glockenturm: viel Volk und eine volle Schatzkammer, nur zwei Geschütze.',
+    start: { money: 520, powder: 100, balls: 8, pop: 270 },
+    ...design(170, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 170, 10);
+      wall(0, 10, 110, 50);
+      roof(gable(0, 110, 50, 26));
+      wall(110, 10, 140, 100);
+      wall(140, 10, 170, 34);
+      room(4, 12, 33, 32);
+      room(45, 10, 63, 28);
+      room(75, 12, 102, 30);
+      room(113, 12, 137, 30);
+      merlons(110, 140, 100, 8, [[118, 132]]);
+      merlons(140, 170, 34, 8, [[145, 159], [161, 167]]);
+      return {
+        cannons: [[119, 100], [146, 34]],
+        king: [48, 10], vane: [162, 34],
+        gold: [4, 12, 29, 20], powder: [75, 12, 27, 18], balls: [113, 12, 24, 18],
+      };
+    }),
+  },
+  pulverturm: {
+    name: 'Pulverturm',
+    desc: 'Ein dicker Turm voller Pulverfässer – ein Treffer dort kostet allerdings alles.',
+    start: { money: 320, powder: 180, balls: 8, pop: 220 },
+    ...design(150, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 150, 10);
+      wall(0, 10, 100, 44);
+      roof(gable(0, 100, 44, 22));
+      wall(0, 44, 14, 70);
+      wall(100, 10, 150, 96);
+      room(4, 12, 25, 32);
+      room(37, 10, 55, 28);
+      room(67, 12, 91, 24);
+      room(104, 12, 146, 66);
+      merlons(100, 150, 96, 8, [[103, 117], [127, 141], [145, 150]]);
+      return {
+        cannons: [[1, 70], [104, 96], [128, 96]],
+        king: [40, 10], vane: [146, 96],
+        gold: [4, 12, 21, 20], powder: [104, 12, 42, 54], balls: [67, 12, 24, 12],
+      };
+    }),
+  },
+  giesserei: {
+    name: 'Gießerei',
+    desc: 'Eine Kugelgießerei mit Schlot: ein riesiges Kugellager und fünf Geschütze.',
+    start: { money: 300, powder: 110, balls: 16, pop: 200 },
+    ...design(168, ({ wall, room, merlons }) => {
+      wall(0, 0, 168, 12);
+      wall(0, 12, 168, 40);
+      wall(50, 40, 118, 64);
+      wall(30, 40, 40, 84);
+      room(4, 12, 62, 36);
+      room(75, 12, 93, 30);
+      room(106, 14, 130, 34);
+      room(134, 14, 164, 32);
+      merlons(0, 30, 40, 8, [[7, 21]]);
+      merlons(118, 168, 40, 8, [[137, 151], [153, 167]]);
+      merlons(50, 118, 64, 8, [[59, 73], [83, 89], [95, 109]]);
+      return {
+        cannons: [[8, 40], [138, 40], [154, 40], [60, 64], [96, 64]],
+        king: [78, 12], vane: [84, 64],
+        gold: [106, 14, 24, 20], powder: [134, 14, 30, 18], balls: [4, 12, 58, 24],
+      };
+    }),
+  },
+  grenzfort: {
+    name: 'Grenzfort',
+    desc: 'Klein und wehrhaft: vier Geschütze, kleine Lager, wenig Volk.',
+    start: { money: 330, powder: 120, balls: 12, pop: 200 },
+    ...design(120, ({ wall, room, merlons }) => {
+      wall(0, 0, 120, 10);
+      wall(0, 10, 120, 50);
+      wall(44, 50, 84, 62);
+      room(4, 12, 20, 32);
+      room(22, 12, 40, 30);
+      room(55, 10, 73, 28);
+      room(86, 12, 116, 24);
+      merlons(0, 44, 50, 8, [[3, 17], [21, 35]]);
+      merlons(84, 120, 50, 8, [[89, 103], [105, 119]]);
+      merlons(44, 84, 62, 8, [[61, 67]]);
+      return {
+        cannons: [[4, 50], [22, 50], [90, 50], [106, 50]],
+        king: [58, 10], vane: [62, 62],
+        gold: [4, 12, 16, 20], powder: [22, 12, 18, 18], balls: [86, 12, 30, 12],
+      };
+    }),
+  },
+  adlerhorst: {
+    name: 'Adlerhorst',
+    desc: 'Schlanker Turm, 120 Schritt hoch, ganz oben ein Geschütz und die Schatzkammer, zwei weitere auf dem Vorwerk.',
+    start: { money: 520, powder: 130, balls: 8, pop: 260 },
+    ...design(100, ({ wall, room, merlons }) => {
+      wall(0, 0, 100, 8);
+      wall(30, 8, 62, 122);
+      wall(62, 8, 100, 30);
+      wall(0, 8, 30, 26);
+      room(37, 8, 55, 26);
+      room(34, 60, 58, 80);
+      room(68, 10, 96, 28);
+      room(4, 10, 24, 22);
+      merlons(30, 62, 122, 8, [[33, 47], [51, 57]]);
+      merlons(62, 100, 30, 8, [[65, 79], [83, 97]]);
+      merlons(0, 30, 26, 8);
+      return {
+        cannons: [[34, 122], [66, 30], [84, 30]],
+        king: [40, 8], vane: [52, 122],
+        gold: [34, 60, 24, 20], powder: [68, 10, 28, 18], balls: [4, 10, 20, 12],
+      };
+    }),
+  },
+  ringburg: {
+    name: 'Ringburg',
+    desc: 'Vier Türme und drei Mauerstücke, sieben Geschütze rundum, der König unter dem inneren Turm.',
+    start: { money: 350, powder: 120, balls: 12, pop: 240 },
+    ...design(180, ({ wall, room, merlons }) => {
+      wall(0, 0, 180, 12);
+      wall(0, 12, 180, 38);
+      wall(0, 38, 22, 74);
+      wall(52, 38, 74, 70);
+      wall(106, 38, 128, 70);
+      wall(158, 38, 180, 76);
+      room(6, 14, 30, 34);
+      room(54, 12, 72, 30);
+      room(86, 14, 104, 32);
+      room(130, 14, 172, 26);
+      merlons(0, 22, 74, 8, [[4, 18]]);
+      merlons(52, 74, 70, 8, [[56, 70]]);
+      merlons(106, 128, 70, 8, [[110, 124]]);
+      merlons(158, 180, 76, 8, [[162, 176]]);
+      merlons(22, 52, 38, 8, [[29, 43]]);
+      merlons(74, 106, 38, 8, [[83, 97], [99, 105]]);
+      merlons(128, 158, 38, 8, [[135, 149]]);
+      return {
+        cannons: [[5, 74], [57, 70], [111, 70], [163, 76], [30, 38], [84, 38], [136, 38]],
+        king: [57, 12], vane: [100, 38],
+        gold: [6, 14, 24, 20], powder: [86, 14, 18, 18], balls: [130, 14, 42, 12],
+      };
+    }),
+  },
+  zitadelle: {
+    name: 'Zitadelle',
+    desc: 'Bergfried, Eckturm und zwei Bastionen zum Berg hin: fünf Geschütze auf vier Ebenen.',
+    start: { money: 150, powder: 90, balls: 8, pop: 140 },
+    ...design(176, ({ wall, room, merlons }) => {
+      wall(0, 0, 176, 12);
+      wall(0, 12, 120, 46);
+      wall(0, 46, 22, 84);
+      wall(30, 46, 90, 76);
+      wall(120, 12, 150, 34);
+      wall(150, 12, 176, 22);
+      room(10, 14, 34, 34);
+      room(51, 12, 69, 30);
+      room(82, 14, 112, 32);
+      room(124, 14, 148, 26);
+      merlons(0, 22, 84, 8, [[4, 18]]);
+      merlons(30, 90, 76, 8, [[55, 61], [69, 83]]);
+      merlons(90, 120, 46, 8, [[99, 113]]);
+      merlons(120, 150, 34, 8, [[129, 143]]);
+      merlons(150, 176, 22, 8, [[155, 169]]);
+      return {
+        cannons: [[5, 84], [70, 76], [100, 46], [130, 34], [156, 22]],
+        king: [54, 12], vane: [56, 76],
+        gold: [10, 14, 24, 20], powder: [82, 14, 30, 18], balls: [124, 14, 24, 12],
+      };
+    }),
+  },
+  turmstadt: {
+    name: 'Turmstadt',
+    desc: 'Drei Türme verschiedener Höhe auf einer Stadtmauer, fünf Geschütze, Kugellager im hohen Turm.',
+    start: { money: 340, powder: 120, balls: 11, pop: 215 },
+    ...design(170, ({ wall, room, merlons }) => {
+      wall(0, 0, 170, 10);
+      wall(0, 10, 170, 34);
+      wall(4, 34, 30, 110);
+      wall(70, 34, 100, 80);
+      wall(140, 34, 166, 60);
+      room(36, 10, 60, 30);
+      room(76, 10, 94, 28);
+      room(108, 10, 135, 28);
+      room(8, 40, 26, 64);
+      merlons(4, 30, 110, 8, [[7, 21]]);
+      merlons(70, 100, 80, 8, [[78, 97]]);
+      merlons(140, 166, 60, 8, [[146, 160]]);
+      merlons(30, 70, 34, 8, [[39, 53]]);
+      merlons(100, 140, 34, 8, [[111, 125]]);
+      return {
+        cannons: [[8, 110], [79, 80], [147, 60], [40, 34], [112, 34]],
+        king: [79, 10], vane: [92, 80],
+        gold: [36, 10, 24, 20], powder: [108, 10, 27, 18], balls: [8, 40, 18, 24],
+      };
+    }),
+  },
+  doppelwall: {
+    name: 'Doppelwall',
+    desc: 'Hinter einem Graben eine Vormauer mit drei Geschützen, dahinter das Haupthaus mit Eckturm.',
+    start: { money: 260, powder: 120, balls: 11, pop: 200 },
+    ...design(190, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 190, 12);
+      wall(0, 12, 110, 56);
+      roof(gable(0, 110, 56, 20));
+      wall(0, 56, 20, 90);
+      wall(130, 12, 190, 34);
+      room(4, 14, 30, 34);
+      room(43, 12, 61, 30);
+      room(74, 14, 101, 32);
+      room(136, 14, 184, 26);
+      merlons(0, 20, 90, 8, [[3, 17]]);
+      merlons(130, 190, 34, 8, [[131, 151], [157, 171], [175, 189]]);
+      return {
+        cannons: [[4, 90], [138, 34], [158, 34], [176, 34]],
+        king: [46, 12], vane: [132, 34],
+        gold: [4, 14, 24, 20], powder: [74, 14, 27, 18], balls: [136, 14, 48, 12],
+      };
+    }),
+  },
 };
 
 function insidePoly(pts, x, y) {
@@ -208,6 +538,7 @@ function insidePoly(pts, x, y) {
 /** Rasterise a castle design into local pixels: "x,y" -> material offset. */
 function rasterise(c) {
   const px = new Map();
+  const rooms = new Set();
   for (const p of c.parts) {
     if (p.op === 'poly') {
       const xs = p.pts.map((q) => q[0]), ys = p.pts.map((q) => q[1]);
@@ -219,10 +550,12 @@ function rasterise(c) {
     const [x0, y0, x1, y1] = p.r;
     for (let y = y0; y < y1; y++)
       for (let x = x0; x < x1; x++) {
-        if (p.op === 'clear') px.delete(`${x},${y}`);
-        else px.set(`${x},${y}`, p.m);
+        if (p.op === 'clear') { px.delete(`${x},${y}`); rooms.add(`${x},${y}`); }
+        else { px.set(`${x},${y}`, p.m); rooms.delete(`${x},${y}`); }
       }
   }
+  // remember the hollow rooms (chambers, throne hall) so they get a back wall instead of sky
+  px.rooms = [...rooms].filter((k) => !px.has(k));
   return px;
 }
 const rasterCache = new Map();
@@ -241,6 +574,10 @@ export function buildCastle(key, side, groundY) {
     const [x, y] = k.split(',').map(Number);
     pixels.push([wx(x), groundY - 1 - y, BRICK + side + m]);
   }
+  const rooms = rasterCache.get(key).rooms.map((k) => {
+    const [x, y] = k.split(',').map(Number);
+    return [wx(x), groundY - 1 - y];
+  });
   const place = (type, [x, y]) => {
     const [w, h] = SIZES[type];
     return { type, x: wx(x, w), y: groundY - y - h, w, h };
@@ -260,5 +597,5 @@ export function buildCastle(key, side, groundY) {
   const cannonSlots = objects.filter((o) => o.type === 'cannon').map(({ x, y }) => ({ x, y }));
   const vane = objects.find((o) => o.type === 'vane');
   const caps = { money: chamberCapacity('gold', c.gold), powder: chamberCapacity('powder', c.powder), balls: chamberCapacity('balls', c.balls) };
-  return { pixels, objects, cannonSlots, vaneSlot: { x: vane.x, y: vane.y }, width: c.width, caps };
+  return { pixels, rooms, objects, cannonSlots, vaneSlot: { x: vane.x, y: vane.y }, width: c.width, caps };
 }

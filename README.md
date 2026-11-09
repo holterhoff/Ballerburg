@@ -18,8 +18,8 @@ Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte
 - Neu geschrieben in JavaScript (2026). Jede portierte Funktion nennt im Code ihr C-Gegenstück (`ein_zug`, `rechnen`, `schuss`, `comp`, `koenig`, `markt`, `bild` …).
 - Eigene Burgen im selben Datenprinzip (Breite, Kanonenplätze, Thron, Windfahne, Kammern, Startwerte), aber mit eigenen Formen.
 - Eigene Sprite-Grafik und Farben. Treffer werden über die Rechtecke dieser Sprites geprüft statt über die Original-Bildpunkte.
-- Lagerkapazitäten stehen als Zahlenwerte je Burg in den Daten und werden nicht aus der Kammergröße berechnet.
 - Erweiterungen (abschaltbar, im Menü „Modus → Optionen“): weitere Bergformen, Erdrutsch, Einsturz.
+- Weitere Burgfehde-Regeln: Der klassische Berg wird zufällig 1- bis 1,8-mal so hoch gestreckt. Fördertürme graben sich eine Stufe in den Hang und halten zwei Treffer aus (der erste bricht das Rad). Anbauen setzt 8x4-Steine, die auf Mauer oder Boden fallen, und ist im Testmodus kostenlos (`freeBuilding`).
 
 ## Spielprinzip (wie im Original)
 
@@ -27,22 +27,43 @@ Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte
 - **Geschütz anklicken**: Winkel 0–180° (über 90° nach hinten) und Pulver 5–20 einstellen. Die Kugel fliegt mit `0,4 + 0,25 × Pulver` Bildpunkten pro Schritt, die Schwerkraft beträgt 0,02 und der Wind zieht die Kugel mit.
 - **Lagerkammer anklicken**: Steuern in Zweierschritten und Markt (Anbauen, Förderturm, Geschütz, Windfahne, Pulver, Kugeln).
 - **König anklicken**: eine Audienz, höchstens einmal pro Zug.
-- **Einschlag**: Die Kugel bohrt vier kleine Krater. Getroffene Kammern kosten bis zu 200 Gold, das ganze Pulver oder 2 Kugeln, und Einschläge in einer Burg kosten Einwohner.
+- **Einschlag**: Die Kugel bohrt vier kleine Krater. Getroffene Kammern kosten bis zu 200 Gold, das ganze Pulver oder 2 Kugeln, und Einschläge in einer Burg kosten Einwohner. Eine getroffene Kammer explodiert sichtbar: Münzen, Fassdauben oder Kugeln fliegen heraus.
 - **Ende**: Der König wird getroffen, das Volk stirbt aus, der König kapituliert in aussichtsloser Lage oder das Rundenlimit ist erreicht.
 - Sieben Computerstrategien mit Stärke 1 bis 4. Über „Modus“ lässt sich jederzeit umschalten.
 
 ## Burgen und Lager
 
-Wie im Original bestimmt die Größe der Lagerkammern, wie viel eine Burg speichern kann (1 Sack = 150 Gold, 1 Fass = 30 Pulver, 1 Kugel je 6x6-Feld). Die Kammern zeigen ihren Inhalt und werden mit jedem Schuss leerer. Die sechs Burgen sind per Turnier gegeneinander ausbalanciert: Bei 1800 Computerpartien mit gleicher Stärke lagen alle zwischen 45 und 54 % Siegquote.
+Wie im Original bestimmt die Größe der Lagerkammern, wie viel eine Burg speichern kann (1 Sack = 150 Gold, 1 Fass = 30 Pulver, 1 Kugel je 6x6-Feld). Die Kammern zeigen ihren Inhalt und werden mit jedem Schuss leerer.
 
-| Burg | Gold | Pulver | Kugeln | Geschütze |
-|---|---|---|---|---|
-| Falkenstein | 900 | 180 | 8 | 3 |
-| Bollwerk | 450 | 180 | 12 | 4 |
-| Hochwacht | 600 | 120 | 9 | 2 |
-| Stufenburg | 300 | 240 | 12 | 4 |
-| Zwillingsburg | 600 | 120 | 8 | 3 |
-| Schatzburg | 1500 | 180 | 6 | 2 |
+Es gibt 20 Burgen. Sie sind per Turnier ausbalanciert: Jede Burg spielte gegen jede andere auf beiden Seiten, Computer gegen Computer mit gleicher Stärke. Bei 3040 Partien lagen alle zwischen 44 und 58 % Siegquote. Burgen mit vielen Geschützen oder großen Lagern starten dafür mit weniger Gold, Volk oder Pulver.
+
+| Burg | Gold | Pulver | Kugeln | Geschütze | Charakter |
+|---|---|---|---|---|---|
+| Falkenstein | 900 | 180 | 8 | 3 | ausgewogen, Bergfried mit Geschütz |
+| Bollwerk | 450 | 180 | 12 | 4 | breiter Wall, wenig Gold |
+| Hochwacht | 600 | 120 | 9 | 2 | Hochturm schießt über jeden Berg |
+| Stufenburg | 300 | 240 | 12 | 5 | Terrassen, Turm mit Geschütz |
+| Zwillingsburg | 600 | 120 | 8 | 3 | zwei Spitztürme |
+| Schatzburg | 1500 | 180 | 6 | 2 | reich, wenige Geschütze |
+| Kanonenfeste | 900 | 180 | 16 | 7 | langer Wall voller Geschütze |
+| Kolossburg | 1800 | 240 | 21 | 8 | das Maximum an Geschützen und Lager |
+| Felsennest | 900 | 120 | 12 | 4 | mächtiger Wohnturm |
+| Speicherburg | 2700 | 450 | 20 | 2 | riesiges Lagerhaus |
+| Bastei | 900 | 180 | 16 | 6 | flach und breit |
+| Abtei | 900 | 180 | 12 | 2 | viel Volk, Glockenturm |
+| Pulverturm | 600 | 720 | 8 | 3 | Turm voller Pulver |
+| Gießerei | 900 | 180 | 36 | 5 | riesiges Kugellager |
+| Grenzfort | 600 | 120 | 10 | 4 | klein und wehrhaft |
+| Adlerhorst | 900 | 180 | 6 | 3 | schlanker Turm, 120 hoch |
+| Ringburg | 900 | 120 | 14 | 7 | vier Türme rundum |
+| Zitadelle | 900 | 180 | 8 | 5 | Bastionen zum Berg hin |
+| Turmstadt | 900 | 180 | 12 | 5 | drei Türme verschiedener Höhe |
+| Doppelwall | 900 | 180 | 16 | 4 | Vormauer hinter einem Graben |
+
+## Grafik und Tageszeiten
+
+- Alle Räume (Kammern, Thronhalle) haben eine Rückwand aus dunklerem Mauerwerk mit Holzboden und Fackellicht, die Pulverkammer ein rötliches Warnlicht.
+- Vier Tageszeiten: Morgen, Tag, Abend, Nacht oder Zufall je Partie. Umschalten im Menü „Modus“ oder unter „Optionen“; Himmel, Sonne oder Mond, Wolken oder Sterne und das Licht auf den Burgen ändern sich.
 
 ## 3D-Geschütz
 

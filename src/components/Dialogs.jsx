@@ -5,7 +5,7 @@ import { MARKET, STRATEGIES } from '../game/engine.js';
 import { ANGLE_MAX, POWDER_MIN, POWDER_MAX, H } from '../game/constants.js';
 import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
 import { TERRAINS, generateTerrain } from '../game/terrain.js';
-import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS } from '../game/render.js';
+import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS, TIME_CHOICES } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
 
 export function Notice({ text, button = 'Abbruch', onClose }) {
@@ -305,6 +305,12 @@ export function OptionsDialog({ options, onApply, onCancel }) {
         <span>Rundenlimit:</span>
         <select value={o.maxRounds} onChange={(e) => setO({ ...o, maxRounds: Number(e.target.value) })}>
           {[0, 10, 20, 30, 50, 100].map((n) => <option key={n} value={n}>{n ? `${n} Runden` : 'keins'}</option>)}
+        </select>
+      </label>
+      <label className="gem-field">
+        <span>Tageszeit:</span>
+        <select value={o.timeOfDay} onChange={(e) => setO({ ...o, timeOfDay: e.target.value })}>
+          {TIME_CHOICES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
       </label>
       <fieldset className="gem-box">
