@@ -1,4 +1,5 @@
 import { W, H, EARTH, BRICK } from './constants.js';
+import { STORE_CELL } from './castles.js';
 
 export const SIDE_COLORS = [
   { main: '#c8553d', dark: '#7d2f22', light: '#f0927a', name: 'Rot' },
@@ -283,15 +284,54 @@ function drawMine(c, x, y, t) {
   px(c, x + 6, y + 21, 4, 3);
 }
 
-export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = false } = {}) {
+function drawKeg(c, x, y) {
+  c.fillStyle = '#7b4a26';
+  px(c, x + 1, y, 6, 8);
+  px(c, x, y + 1, 8, 6);
+  c.fillStyle = '#3a3a40';
+  px(c, x, y + 2, 8, 1);
+  px(c, x, y + 5, 8, 1);
+  c.fillStyle = '#5c361b';
+  px(c, x + 4, y, 1, 8);
+}
+
+function drawBall(c, x, y) {
+  c.fillStyle = '#25252c';
+  px(c, x + 1, y, 3, 5);
+  px(c, x, y + 1, 5, 3);
+  c.fillStyle = '#7d808a';
+  px(c, x + 1, y + 1, 1, 1);
+}
+
+/**
+ * A store room shows what it holds: one sack per 150 gold, one keg per 30 powder, one ball per ball.
+ * It fills from the bottom row on the outer side, so every shot visibly empties it.
+ */
+function drawChamber(c, o, kind, amount, t) {
+  const [cw, ch, unit] = STORE_CELL[kind];
+  const cols = Math.floor(o.w / cw), rows = Math.floor(o.h / ch);
+  const count = Math.max(0, Math.min(cols * rows, Math.ceil(amount / unit)));
+  c.fillStyle = 'rgba(18, 12, 22, 0.6)';
+  c.fillRect(o.x, o.y, o.w, o.h);
+  for (let i = 0; i < count; i++) {
+    const col = i % cols, row = Math.floor(i / cols);
+    const x = o.owner === 0 ? o.x + col * cw : o.x + o.w - (col + 1) * cw;
+    const y = o.y + o.h - (row + 1) * ch;
+    if (kind === 'gold') drawGold(c, x, y + 2, t + i);
+    else if (kind === 'powder') drawKeg(c, x, y + 1);
+    else drawBall(c, x, y + 1);
+  }
+}
+
+export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = false, stock = null } = {}) {
   const pal = SIDE_COLORS[o.owner];
   const x = o.x | 0, y = o.y | 0;
   switch (o.type) {
     case 'king': return drawKing(c, x, y, pal, t);
     case 'cannon': return drawCannon(c, o, pal, angle, highlight);
-    case 'powder': return drawPowder(c, x, y);
-    case 'balls': return drawBalls(c, x, y);
-    case 'gold': return drawGold(c, x, y, t);
+    case 'powder': return stock ? drawChamber(c, o, 'powder', stock.powder, t) : drawPowder(c, x, y);
+    case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
+    case 'gold': return stock ? drawChamber(c, o, 'gold', stock.money, t) : drawGold(c, x, y, t);
     case 'vane': return drawVane(c, x, y, pal, wind, t);
     case 'mine': return drawMine(c, x, y, t);
   }
@@ -322,7 +362,7 @@ export function drawScene(c, game, r, view) {
     if (!o.alive) continue;
     const isSel = o.id === game.selected && (game.phase === 'aim' || game.phase === 'ai');
     const angle = isSel && view.aim ? view.aim.angle : o.aim.angle;
-    drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired });
+    drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner] });
   }
 
   const pr = game.projectile;
@@ -372,7 +412,7 @@ export function drawScene(c, game, r, view) {
 }
 
 /** Small standalone preview of a castle for the setup dialog, drawn with the in-game renderer. */
-export function drawCastlePreview(canvas, built, side) {
+export function drawCastlePreview(canvas, built, side, stock = null) {
   const ground = 140;
   const w = 196, h = ground + 10;
   canvas.width = w;
@@ -400,7 +440,7 @@ export function drawCastlePreview(canvas, built, side) {
   c.drawImage(full, ox, H - h, w, h, 0, 0, w, h);
   c.save();
   c.translate(-ox, -(H - h));
-  built.objects.forEach((o, i) => drawObject(c, { ...o, y: o.y + shift, id: i, owner: side, aim: { angle: 40 } }, { wind: 8, t: 0, angle: 40 }));
+  built.objects.forEach((o, i) => drawObject(c, { ...o, y: o.y + shift, id: i, owner: side, aim: { angle: 40 } }, { wind: 8, t: 0, angle: 40, stock }));
   c.restore();
 }
 

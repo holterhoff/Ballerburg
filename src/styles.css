@@ -131,7 +131,9 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .gem-spinner-label { min-width: 70px; }
 .gem-value { min-width: 54px; text-align: center; border: 1px solid var(--ink); font-variant-numeric: tabular-nums; }
 
-.aim-grid { display: grid; grid-template-columns: 1fr 240px; gap: 10px; align-items: start; }
+.aim-grid { display: grid; grid-template-columns: 1fr 260px; gap: 10px; align-items: start; }
+.cannon3d { display: block; width: 100%; aspect-ratio: 16 / 10; border: 2px solid var(--ink); background: linear-gradient(#cfd8e6, #f4efe6); opacity: 0; transition: opacity 250ms ease; }
+.cannon3d.ready { opacity: 1; }
 .aim-preview { width: 100%; border: 2px solid var(--ink); image-rendering: pixelated; background: var(--paper); }
 
 .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
@@ -167,6 +169,7 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   .info-who, .info-wind { border-bottom: 0; }
   .screen { display: flex; flex-direction: column; aspect-ratio: auto; }
   .stage-canvas { aspect-ratio: 16 / 10; height: auto; }
+  .roundbox { top: 4px; bottom: auto; }
 }
 
 @media (prefers-reduced-motion: reduce) {

@@ -31,6 +31,23 @@ Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte
 - **Ende**: Der König wird getroffen, das Volk stirbt aus, der König kapituliert in aussichtsloser Lage oder das Rundenlimit ist erreicht.
 - Sieben Computerstrategien mit Stärke 1 bis 4. Über „Modus“ lässt sich jederzeit umschalten.
 
+## Burgen und Lager
+
+Wie im Original bestimmt die Größe der Lagerkammern, wie viel eine Burg speichern kann (1 Sack = 150 Gold, 1 Fass = 30 Pulver, 1 Kugel je 6x6-Feld). Die Kammern zeigen ihren Inhalt und werden mit jedem Schuss leerer. Die sechs Burgen sind per Turnier gegeneinander ausbalanciert: Bei 1800 Computerpartien mit gleicher Stärke lagen alle zwischen 45 und 54 % Siegquote.
+
+| Burg | Gold | Pulver | Kugeln | Geschütze |
+|---|---|---|---|---|
+| Falkenstein | 900 | 180 | 8 | 3 |
+| Bollwerk | 450 | 180 | 12 | 4 |
+| Hochwacht | 600 | 120 | 9 | 2 |
+| Stufenburg | 300 | 240 | 12 | 4 |
+| Zwillingsburg | 600 | 120 | 8 | 3 |
+| Schatzburg | 1500 | 180 | 6 | 2 |
+
+## 3D-Geschütz
+
+Der Zieldialog zeigt das Geschütz als 3D-Modell (three.js, wird erst beim Öffnen nachgeladen). Das Rohr folgt dem Winkel, das Pulverfass wächst mit der Ladung. Ohne WebGL erscheint eine 2D-Zeichnung.
+
 ## Lokal starten
 
 ```bash

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, Btn, Spinner } from './Gem.jsx';
+import Cannon3D from './Cannon3D.jsx';
 import { MARKET, STRATEGIES } from '../game/engine.js';
 import { ANGLE_MAX, POWDER_MIN, POWDER_MAX, H } from '../game/constants.js';
-import { CASTLES, buildCastle } from '../game/castles.js';
+import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
 import { TERRAINS, generateTerrain } from '../game/terrain.js';
 import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
@@ -24,8 +25,11 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
   const [powder, setPowder] = useState(Math.min(cannon.aim.powder, maxPowder));
   const ref = useRef(null);
   const dir = cannon.owner === 0 ? 1 : -1;
+  const [no3d, setNo3d] = useState(false);
 
+  // 2D fallback drawing, used only when WebGL is not available
   useEffect(() => {
+    if (!ref.current) return;
     const c = ref.current.getContext('2d');
     const w = 240, h = 110;
     c.clearRect(0, 0, w, h);
@@ -58,7 +62,7 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
     c.arc(cx, cy, 44, -Math.PI / 2 - (Math.PI / 2) * dir, dir > 0 ? -a : -Math.PI + a, dir < 0);
     c.stroke();
     c.setLineDash([]);
-  }, [angle, dir]);
+  }, [angle, dir, no3d]);
 
   useEffect(() => {
     const key = (e) => {
@@ -80,7 +84,11 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
           <Spinner label="Pulver" value={powder} onChange={setPowder} min={POWDER_MIN} max={maxPowder} coarse={3} />
           <p className="gem-small">Über 90° schießt das Geschütz nach hinten. Vorrat: {p.powder} Pulver, {p.balls} Kugeln.</p>
         </div>
-        <canvas ref={ref} width={240} height={110} className="aim-preview" aria-label={`Geschütz bei ${angle} Grad`} role="img" />
+        {no3d ? (
+          <canvas ref={ref} width={240} height={110} className="aim-preview" aria-label={`Geschütz bei ${angle} Grad`} role="img" />
+        ) : (
+          <Cannon3D angle={angle} powder={powder} side={cannon.owner} onUnavailable={() => setNo3d(true)} />
+        )}
       </div>
       <div className="gem-actions">
         <Btn onClick={onCancel}>Abbruch</Btn>
@@ -140,7 +148,7 @@ export function MarketDialog({ game, onClose }) {
           ))}
         </div>
       </section>
-      <p className="gem-small">Grau = zu teuer, kein Platz oder schon vorhanden. Lager fassen höchstens {p.caps.powder} Pulver und {p.caps.balls} Kugeln.</p>
+      <p className="gem-small">Grau = zu teuer, kein Platz, Lager voll oder schon vorhanden. Deine Kammern fassen {p.caps.money} Gold, {p.caps.powder} Pulver und {p.caps.balls} Kugeln.</p>
       <div className="gem-actions"><Btn def data-autofocus onClick={onClose}>Fertig</Btn></div>
     </Dialog>
   );
@@ -160,12 +168,17 @@ export function KingDialog({ result, onClose }) {
   );
 }
 
+function capsOf(key) {
+  const c = CASTLES[key];
+  return `${chamberCapacity('gold', c.gold)} Gold · ${chamberCapacity('powder', c.powder)} Pulver · ${chamberCapacity('balls', c.balls)} Kugeln`;
+}
+
 function CastlePicker({ side, value, onChange }) {
   const keys = Object.keys(CASTLES);
   const i = keys.indexOf(value);
   const ref = useRef(null);
   useEffect(() => {
-    drawCastlePreview(ref.current, buildCastle(value, side, H - 10), side);
+    drawCastlePreview(ref.current, buildCastle(value, side, H - 10), side, CASTLES[value].start);
   }, [value, side]);
   return (
     <div className="castle-picker">
@@ -176,6 +189,7 @@ function CastlePicker({ side, value, onChange }) {
         <button className="gem-arrow" type="button" onClick={() => onChange(keys[(i + 1) % keys.length])} aria-label="nächste Burg">▸</button>
       </div>
       <p className="gem-small">{CASTLES[value].desc}</p>
+      <p className="gem-small">Lager: {capsOf(value)}</p>
     </div>
   );
 }

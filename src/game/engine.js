@@ -122,12 +122,12 @@ export class Game {
       const c = CASTLES[pc.castle];
       const built = buildCastle(pc.castle, i, this.baseY[i]);
       for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) this.solid[y * W + x] = m;
-      built.objects.forEach((o) => this.addObject(o.type, i, o.x, o.y));
+      built.objects.forEach((o) => this.addObject(o.type, i, o.x, o.y, o.w, o.h));
       return {
         idx: i, name: pc.name, type: pc.type, castle: pc.castle,
         strategy: pc.strategy ?? 2, strength: clamp(pc.strength ?? 2, 1, 4),
         money: c.start.money, powder: c.start.powder, balls: c.start.balls, pop: c.start.pop,
-        startPop: c.start.pop, caps: { ...c.caps },
+        startPop: c.start.pop, caps: built.caps, // original: the chamber size limits what can be stored
         tax: 20, // original: st[n] = 20
         visits: 0, visitStreak: 0, visitedThisTurn: false, lastAudience: null, // original: kn[n]
         width: built.width, cannonSlots: built.cannonSlots, vaneSlot: built.vaneSlot,
@@ -170,8 +170,7 @@ export class Game {
     this.terrainDirty = true;
   }
 
-  addObject(type, owner, x, y) {
-    const [w, h] = SIZES[type];
+  addObject(type, owner, x, y, w = SIZES[type][0], h = SIZES[type][1]) {
     const o = { id: this.nextId++, type, owner, x, y, w, h, alive: true, aim: { ...DEFAULT_AIM }, fall: null, lastTrail: null };
     this.objects.push(o);
     return o;
