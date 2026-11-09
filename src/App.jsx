@@ -132,7 +132,7 @@ export default function App() {
           <div className="screen">
             <Stage game={g} onPick={onPick} />
 
-            <div className="infobox" style={{ '--side': SIDE_COLORS[g.current].main }}>
+            <div className={`infobox ${g.current === 1 ? 'side-right' : 'side-left'}`} style={{ '--side': SIDE_COLORS[g.current].main }}>
               <div className="info-who"><b>{p.name}</b><br />{over ? 'Spiel beendet' : 'ist am Zug …'}</div>
               <div className="info-wind">
                 <span className="info-label">Wind:</span>

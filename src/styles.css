@@ -72,6 +72,8 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   background: var(--paper); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink);
   font-size: clamp(14px, 1.6vw, 20px);
 }
+.infobox.side-right { left: auto; right: 1%; }
+.infobox.side-right .info-who { border-left: 0; border-right: 6px solid var(--side); text-align: right; }
 .info-who { padding: 2px 8px; border-bottom: 2px solid var(--ink); border-left: 6px solid var(--side); }
 .info-wind { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 2px solid var(--ink); }
 .info-label { border: 1px solid var(--ink); padding: 0 4px; }
@@ -167,6 +169,8 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   .ledger { grid-template-columns: 1fr; }
   .infobox { position: static; width: auto; box-shadow: none; display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; border-width: 2px 0 0; }
   .info-who, .info-wind { border-bottom: 0; }
+  .infobox.side-left { grid-template-columns: auto 1fr 1fr; }
+  .infobox.side-left .info-done { order: -1; }
   .screen { display: flex; flex-direction: column; aspect-ratio: auto; }
   .stage-canvas { aspect-ratio: 16 / 10; height: auto; }
   .roundbox { top: 4px; bottom: auto; }
