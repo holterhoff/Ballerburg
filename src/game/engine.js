@@ -43,6 +43,10 @@ const MAX_MINES = 5;
 const MINE_LIMIT_X = 265;
 /** Original: bricks can only be laid below y = 155. */
 const BUILD_MIN_Y = 155;
+/** Burgfehde: bricks are 8×4 pixels like the masonry pattern, and may be laid up to 40 px in front of the castle. */
+const BRICK_W = 8;
+const BRICK_H = 4;
+const BUILD_MARGIN = 40;
 
 /**
  * Computer strategies (original: cw[] with the seven named computer players).
@@ -71,6 +75,8 @@ export const DEFAULT_OPTIONS = {
   autoCapitulate: true,
   /** Original: an_erl, laying bricks is allowed. */
   allowBuilding: true,
+  /** Burgfehde test mode: laying bricks costs nothing. Set to false for the original price. */
+  freeBuilding: true,
   /** Burgfehde extensions, all off by default so the game plays like the original. */
   extensions: { landslides: false, falling: false },
 };
@@ -565,8 +571,13 @@ export class Game {
   }
 
   /** Original: market items are greyed out when unaffordable or not possible. */
+  /** What an item costs right now (bricks are free in test mode). */
+  priceOf(key) {
+    return key === 'stones' && this.options.freeBuilding ? 0 : this.prices[key];
+  }
+
   canBuy(key, p = this.cur) {
-    if (p.money < this.prices[key]) return false;
+    if (p.money < this.priceOf(key)) return false;
     switch (key) {
       case 'stones': return this.options.allowBuilding;
       case 'mine': return !!this.nextMineSpot(p);
@@ -581,7 +592,7 @@ export class Game {
   buy(key) {
     const p = this.cur;
     if ((this.phase !== 'aim' && this.phase !== 'ai') || !this.canBuy(key, p)) { if (p.type === 'human') sound.error(); return false; }
-    p.money -= this.prices[key];
+    p.money -= this.priceOf(key);
     switch (key) {
       case 'stones':
         this.building = { left: 20 }; // original: anbau() lets you lay 20 bricks
@@ -612,22 +623,37 @@ export class Game {
     return true;
   }
 
-  /** Original anbau(): bricks go next to existing ground or wall, on your own side, below y = 155. */
+  /**
+   * Where a brick lands when the player clicks at (lx, ly).
+   * Original anbau() wanted a 4×4 cell exactly next to ground or wall, which rarely fits beside
+   * sloped or damaged walls. Burgfehde: the brick (BRICK_W×BRICK_H, centred on the click) is pushed
+   * up out of anything solid, then falls down until it rests on ground, wall or another brick.
+   * It must stay on your own side (castle width + BUILD_MARGIN) and below y = BUILD_MIN_Y.
+   */
   brickSpot(lx, ly, side = this.current) {
-    const x = Math.floor(lx / CELL) * CELL, y = Math.floor(ly / CELL) * CELL;
+    const w = BRICK_W, h = BRICK_H;
+    const x = Math.round(lx - w / 2);
+    let y = Math.round(ly - h / 2);
     const width = this.players[side].width;
-    const inZone = side === 0 ? x + CELL <= width + 15 : x >= W - width - 15;
-    if (!inZone || y < BUILD_MIN_Y || y + CELL > H) return null;
-    if (!this.rectFree(x, y, CELL, CELL)) return null;
-    const touches = this.isSolid(x + 1, y + CELL) || this.isSolid(x - 1, y + 1) || this.isSolid(x + CELL, y + 1) || this.isSolid(x + 1, y - 1);
-    return touches ? { x, y, w: CELL, h: CELL } : null;
+    const inZone = side === 0 ? x >= 0 && x + w <= width + BUILD_MARGIN : x >= W - width - BUILD_MARGIN && x + w <= W;
+    if (!inZone) return null;
+    // clicked into a wall or roof: move up until the brick sits on top of it (at most 60 px)
+    let lift = 0;
+    while (!this.rectFree(x, y, w, h)) {
+      if (++lift > 60 || --y < 0) return null;
+    }
+    // fall until something is directly below
+    const restsOn = (yy) => { for (let i = x; i < x + w; i++) if (this.loc(i, yy + h)) return true; return false; };
+    while (y + h < H && !restsOn(y)) y++;
+    if (y < BUILD_MIN_Y) return null;
+    return { x, y, w, h };
   }
 
   layBrick(lx, ly) {
     if (!this.building || this.phase !== 'aim') return false;
     const s = this.brickSpot(lx, ly);
     if (!s) { sound.error(); return false; }
-    this.fillBrick(s.x, s.y, BRICK + this.current);
+    for (let j = 0; j < s.h; j += CELL) for (let i = 0; i < s.w; i += CELL) this.fillBrick(s.x + i, s.y + j, BRICK + this.current);
     sound.click();
     if (--this.building.left <= 0) this.building = null;
     this.emit();

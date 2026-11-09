@@ -143,7 +143,7 @@ export function MarketDialog({ game, onClose }) {
                 }
               }}
             >
-              <span>{m.label}</span><b>{game.prices[m.key]}</b>
+              <span>{m.label}</span><b>{game.priceOf(m.key) === 0 ? 'frei' : game.priceOf(m.key)}</b>
             </button>
           ))}
         </div>

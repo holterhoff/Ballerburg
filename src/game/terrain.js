@@ -32,6 +32,9 @@ function castleGround() {
  * The loop stops when the flanks meet or the row reaches y = 20.
  */
 function classicMountain(h, by, widths) {
+  // Burgfehde: the original always limits the slope to 0..7; a random limit of 4..7 per game
+  // makes the mountain anywhere from medium (about y = 130) to towering (up to y = 20).
+  const vmax = 4 + randInt(4);
   let x1 = 0;
   let x2 = 2556;
   let v1 = 2;
@@ -42,11 +45,11 @@ function classicMountain(h, by, widths) {
     if (y === by[0]) x1 = widths[0] * 4;
     if (y === by[1]) x2 = (639 - widths[1]) << 2;
     if (x1) {
-      v1 = Math.min(7, Math.max(0, v1 + randInt(5) - 2));
+      v1 = Math.min(vmax, Math.max(0, v1 + randInt(5) - 2));
       x1 += v1;
     }
     if (x2 < 2556) {
-      v2 = Math.min(7, Math.max(0, v2 + randInt(5) - 2));
+      v2 = Math.min(vmax, Math.max(0, v2 + randInt(5) - 2));
       x2 -= v2;
     }
   }
