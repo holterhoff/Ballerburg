@@ -1,4 +1,4 @@
-import { W, H, EARTH, BRICK, HOME } from './constants.js';
+import { W, H, EARTH, BRICK } from './constants.js';
 
 export const SIDE_COLORS = [
   { main: '#c8553d', dark: '#7d2f22', light: '#f0927a', name: 'Rot' },
@@ -7,6 +7,10 @@ export const SIDE_COLORS = [
 const BRICK_COLORS = [
   { a: [196, 160, 108], b: [178, 141, 92], m: [104, 78, 52] },
   { a: [148, 160, 176], b: [128, 141, 159], m: [68, 78, 96] },
+];
+const ROOF_COLORS = [
+  { a: [150, 62, 48], b: [128, 50, 40], m: [72, 30, 26] },
+  { a: [70, 86, 120], b: [58, 72, 104], m: [34, 42, 64] },
 ];
 
 function hash(x, y) {
@@ -88,19 +92,32 @@ export function refreshTerrain(r, game) {
         else {
           const depth = Math.min(1, Math.max(0, (y - game.heights[x]) / 90));
           const base = n < 0.12 ? [92, 70, 54] : n > 0.9 ? [56, 42, 36] : [74, 56, 45];
-          const k = 1 - depth * 0.35;
+          const k = 1 - depth * 0.18;
           [R, G, B] = [base[0] * k, base[1] * k, base[2] * k];
         }
       } else {
-        const C = BRICK_COLORS[t - BRICK] || BRICK_COLORS[0];
-        const row = y >> 2;
-        const off = (row & 1) * 4;
-        const mortar = (y & 3) === 3 || ((x + off) & 7) === 7;
-        if (mortar) [R, G, B] = C.m;
-        else {
-          const base = hash((x + off) >> 3, row) < 0.5 ? C.a : C.b;
-          const n = (hash(x, y) - 0.5) * 14;
-          [R, G, B] = [base[0] + n, base[1] + n, base[2] + n];
+        const mat = t - BRICK;
+        const side = mat & 1;
+        // An edge pixel (air next to it) is drawn darker, so walls and roofs get a crisp outline.
+        const edge = (x > 0 && !s[i - 1]) || (x < W - 1 && !s[i + 1]) || (y > 0 && !s[i - W]);
+        if (mat >= 2) {
+          const C = ROOF_COLORS[side];
+          const row = Math.floor(y / 3);
+          const off = (row & 1) * 3;
+          const gap = y % 3 === 2 || (x + off) % 6 === 5;
+          const base = edge || gap ? C.m : hash((x + off) / 6 | 0, row) < 0.5 ? C.a : C.b;
+          [R, G, B] = base;
+        } else {
+          const C = BRICK_COLORS[side];
+          const row = y >> 2;
+          const off = (row & 1) * 4;
+          const mortar = (y & 3) === 3 || ((x + off) & 7) === 7;
+          if (mortar || edge) [R, G, B] = C.m;
+          else {
+            const base = hash((x + off) >> 3, row) < 0.5 ? C.a : C.b;
+            const n = (hash(x, y) - 0.5) * 14;
+            [R, G, B] = [base[0] + n, base[1] + n, base[2] + n];
+          }
         }
       }
       d[o] = R;
@@ -119,6 +136,7 @@ const px = (c, x, y, w = 1, h = 1) => c.fillRect(x, y, w, h);
 
 function line(c, x0, y0, x1, y1) {
   x0 = Math.round(x0); y0 = Math.round(y0); x1 = Math.round(x1); y1 = Math.round(y1);
+  if (![x0, y0, x1, y1].every(Number.isFinite)) return;
   const dx = Math.abs(x1 - x0), dy = -Math.abs(y1 - y0);
   const sx = x0 < x1 ? 1 : -1, sy = y0 < y1 ? 1 : -1;
   let err = dx + dy;
@@ -338,12 +356,9 @@ export function drawScene(c, game, r, view) {
     c.fill();
   }
 
-  if (game.placing && game.phase === 'aim') {
-    const [h0, h1] = HOME[game.current];
-    c.fillStyle = 'rgba(255, 233, 168, 0.07)';
-    c.fillRect(h0, 0, h1 - h0, H);
+  if (game.building && game.phase === 'aim') {
     if (view.hover) {
-      const spot = game.placementSpot(game.placing, view.hover.x, view.hover.y);
+      const spot = game.brickSpot(view.hover.x, view.hover.y);
       if (spot) {
         c.fillStyle = 'rgba(160, 230, 140, 0.55)';
         c.fillRect(spot.x, spot.y, spot.w, spot.h);
@@ -356,33 +371,36 @@ export function drawScene(c, game, r, view) {
   c.restore();
 }
 
-/** Small standalone preview of a castle layout for the setup dialog. */
+/** Small standalone preview of a castle for the setup dialog, drawn with the in-game renderer. */
 export function drawCastlePreview(canvas, built, side) {
-  const c = canvas.getContext('2d');
-  const ox = side === 0 ? 0 : 504;
-  const w = 136, h = 132;
+  const ground = 140;
+  const w = 196, h = ground + 10;
   canvas.width = w;
   canvas.height = h;
+  const c = canvas.getContext('2d');
   const g = c.createLinearGradient(0, 0, 0, h);
   g.addColorStop(0, '#33234a');
   g.addColorStop(1, '#8e4357');
   c.fillStyle = g;
   c.fillRect(0, 0, w, h);
+  const ox = side === 0 ? 0 : W - w;
+  const fake = { solid: new Uint8Array(W * H), heights: new Float32Array(W).fill(H) };
+  // the castle is built standing on y = H - 10 (see CastlePicker), so no shift is needed
+  const shift = 0;
+  for (const [x, y, m] of built.pixels) {
+    const yy = y + shift;
+    if (x >= 0 && x < W && yy >= 0 && yy < H) fake.solid[yy * W + x] = m;
+  }
+  for (let x = 0; x < W; x++) for (let y = H - 10; y < H; y++) fake.solid[y * W + x] = EARTH;
+  const full = document.createElement('canvas');
+  full.width = W;
+  full.height = H;
+  const fctx = full.getContext('2d');
+  refreshTerrain({ img: fctx.createImageData(W, H), tctx: fctx }, fake);
+  c.drawImage(full, ox, H - h, w, h, 0, 0, w, h);
   c.save();
-  c.translate(-ox, -(316 - h + 8));
-  const C = BRICK_COLORS[side];
-  built.bricks.forEach(([x, y]) => {
-    c.fillStyle = `rgb(${C.a.join(',')})`;
-    c.fillRect(x, y, 4, 4);
-    c.fillStyle = `rgb(${C.m.join(',')})`;
-    c.fillRect(x, y + 3, 4, 1);
-    c.fillRect(x + 3, y, 1, 3);
-  });
-  built.objects.forEach((o, i) => drawObject(c, { ...o, id: i, owner: side, aim: { angle: 40 } }, { wind: 8, t: 0, angle: 40 }));
-  c.fillStyle = '#86a852';
-  c.fillRect(ox, 316, w + 10, 2);
-  c.fillStyle = '#4a382d';
-  c.fillRect(ox, 318, w + 10, 8);
+  c.translate(-ox, -(H - h));
+  built.objects.forEach((o, i) => drawObject(c, { ...o, y: o.y + shift, id: i, owner: side, aim: { angle: 40 } }, { wind: 8, t: 0, angle: 40 }));
   c.restore();
 }
 
@@ -404,8 +422,4 @@ export function drawTerrainPreview(canvas, heights) {
     c.fillStyle = '#86a852';
     c.fillRect(x, top, 1, 2);
   }
-  c.fillStyle = 'rgba(196, 160, 108, 0.9)';
-  c.fillRect(8, 260, 128, 56);
-  c.fillStyle = 'rgba(148, 160, 176, 0.9)';
-  c.fillRect(504, 260, 128, 56);
 }

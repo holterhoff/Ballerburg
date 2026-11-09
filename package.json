@@ -15,5 +15,7 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^5.4.11"
-  }
+  },
+  "license": "GPL-3.0-or-later",
+  "description": "Burgfehde – Burgen-Artilleriespiel im Browser, Spiellogik portiert von Ballerburg (Eckhard Kruse, Thomas Huth)"
 }

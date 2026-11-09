@@ -1,19 +1,35 @@
 # Burgfehde
 
-Ein Artillerie-Duell zweier Burgen im Browser, gebaut mit React und Vite. Zwei Burgen stehen sich links und rechts eines Berges gegenüber. Wer den gegnerischen König trifft oder den Gegner zur Kapitulation zwingt, gewinnt.
+Ein Burgen-Artilleriespiel für den Browser, gebaut mit React und Vite, mit einer Oberfläche im Stil eines Desktops der 1980er Jahre.
 
-Burgfehde ist ein eigenständiges Spiel im Geist der Burgen-Artilleriespiele der 1980er Jahre. Grafik, Burgen, Figuren und Texte sind eigene Entwürfe.
+## Herkunft und Lizenz
 
-## Spielprinzip
+Die **Spiellogik** ist eine Portierung von **Ballerburg** nach JavaScript:
 
-- **Zielen**: Winkel (0–90°) und Pulvermenge (1–30) einstellen. Jede Kanone schießt einmal pro Zug.
-- **Wind**: ändert sich jeden Zug und lenkt die Kugel ab. Die genaue Stärke zeigt nur eine intakte Windfahne.
-- **Burg**: König, Kanonen, Pulverlager, Kugellager, Geldsäcke. Treffer auf Lager vernichten die Vorräte, Geldsäcke kosten Gold. Was den Halt verliert, stürzt ab.
-- **Schatzkammer**: Steuern einstellen (mehr Gold, aber das Volk wandert ab), Steine zum Ausbessern, Kanonen, Pulver, Kugeln, Windfahne und Fördertürme kaufen.
-- **Ende**: König getroffen, Volk ausgewandert oder Kapitulation, wenn keine Kanone, Kugel oder Pulver mehr bezahlbar ist.
-- **Modi**: Mensch gegen Mensch (abwechselnd am selben Gerät), Mensch gegen Computer oder Computer gegen Computer. Es gibt vier Computergegner in steigender Stärke.
+- Ballerburg © 1987, 1989 Eckhard Kruse
+- Ballerburg SDL © 2010, 2015 Thomas Huth (https://baller.tuxfamily.org/), veröffentlicht unter der GNU GPL v3
 
-Tastatur: `↑`/`↓` Winkel (`Shift` ±10), `←`/`→` Pulver, `Leertaste` Feuer, `Tab` nächste Kanone, `M` Schatzkammer, `E` Zug beenden, `Esc` Platzieren abbrechen.
+Burgfehde ist ein davon abgeleitetes Werk und steht deshalb ebenfalls unter der **GNU General Public License, Version 3 oder später** (siehe [LICENSE](LICENSE)). Das heißt: Wer Burgfehde weitergibt oder veröffentlicht, muss den Quellcode unter derselben Lizenz zugänglich machen und diese Hinweise erhalten.
+
+Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte, Oberfläche, Ton sowie die als „Erweiterung“ markierten Spielregeln (zusätzliche Bergformen, nachrutschende Hänge, abstürzende Burgteile). Die Original-Burgen, die Musik und der Name „Ballerburg“ werden nicht verwendet.
+
+### Änderungen gegenüber dem Original
+
+- Neu geschrieben in JavaScript (2026). Jede portierte Funktion nennt im Code ihr C-Gegenstück (`ein_zug`, `rechnen`, `schuss`, `comp`, `koenig`, `markt`, `bild` …).
+- Eigene Burgen im selben Datenprinzip (Breite, Kanonenplätze, Thron, Windfahne, Kammern, Startwerte), aber mit eigenen Formen.
+- Eigene Sprite-Grafik und Farben. Treffer werden über die Rechtecke dieser Sprites geprüft statt über die Original-Bildpunkte.
+- Lagerkapazitäten stehen als Zahlenwerte je Burg in den Daten und werden nicht aus der Kammergröße berechnet.
+- Erweiterungen (abschaltbar, im Menü „Modus → Optionen“): weitere Bergformen, Erdrutsch, Einsturz.
+
+## Spielprinzip (wie im Original)
+
+- Die linke Burg beginnt. Pro Zug gibt es **einen Schuss**. Wer nicht schießen will, klickt auf **Fertig**.
+- **Geschütz anklicken**: Winkel 0–180° (über 90° nach hinten) und Pulver 5–20 einstellen. Die Kugel fliegt mit `0,4 + 0,25 × Pulver` Bildpunkten pro Schritt, die Schwerkraft beträgt 0,02 und der Wind zieht die Kugel mit.
+- **Lagerkammer anklicken**: Steuern in Zweierschritten und Markt (Anbauen, Förderturm, Geschütz, Windfahne, Pulver, Kugeln).
+- **König anklicken**: eine Audienz, höchstens einmal pro Zug.
+- **Einschlag**: Die Kugel bohrt vier kleine Krater. Getroffene Kammern kosten bis zu 200 Gold, das ganze Pulver oder 2 Kugeln, und Einschläge in einer Burg kosten Einwohner.
+- **Ende**: Der König wird getroffen, das Volk stirbt aus, der König kapituliert in aussichtsloser Lage oder das Rundenlimit ist erreicht.
+- Sieben Computerstrategien mit Stärke 1 bis 4. Über „Modus“ lässt sich jederzeit umschalten.
 
 ## Lokal starten
 
@@ -22,26 +38,16 @@ npm install
 npm run dev
 ```
 
-Danach http://localhost:5173 öffnen.
+## Veröffentlichen (Vercel)
 
-## Auf Vercel veröffentlichen
-
-Das Projekt ist ein statischer Vite-Build (`dist/`), `vercel.json` ist bereits vorhanden.
-
-**Variante A – über GitHub (empfohlen):** Repository auf GitHub pushen, auf vercel.com „Add New → Project“ wählen und das Repo importieren. Vercel erkennt Vite automatisch. Jeder Push veröffentlicht dann neu.
-
-**Variante B – per CLI:**
-
-```bash
-npx vercel        # einmalig anmelden und Projekt verknüpfen (Vorschau-Deployment)
-npx vercel --prod # Produktions-Deployment
-```
+`vercel.json` ist vorhanden. Wegen der GPL muss der Quellcode öffentlich zugänglich sein, zum Beispiel als öffentliches GitHub-Repository, das auf Vercel importiert wird. Im Spiel verweist „Burgfehde → Über Burgfehde …“ auf Lizenz und Quellcode.
 
 ## Aufbau
 
 ```
-src/
-  game/        Spiel-Engine ohne React: Physik, Wirtschaft, Computergegner, Renderer, Ton
-  components/  Spielfeld (Canvas), Startbildschirm, Schatzkammer, Regeln, Ehrentafel
-  App.jsx      Spielablauf und Bedienung
+src/game/engine.js     Spiellogik (Portierung, kommentiert mit den Original-Funktionsnamen)
+src/game/castles.js    Burgdaten im Datenprinzip von BALLER.DAT, eigene Entwürfe
+src/game/terrain.js    Berg nach bild() plus Erweiterungsformen
+src/game/render.js     Grafik
+src/components/        Menüleiste, Dialoge, Spielfeld
 ```

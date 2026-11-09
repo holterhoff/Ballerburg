@@ -1,97 +1,165 @@
+/*
+ * Burgfehde – Spiel-Engine.
+ *
+ * Die Spiellogik ist eine Portierung von Ballerburg nach JavaScript:
+ *   Copyright (C) 1987, 1989  Eckhard Kruse
+ *   Copyright (C) 2010, 2015  Thomas Huth (SDL-Fassung)
+ *   Copyright (C) 2026        Burgfehde
+ *
+ * This program is free software: you can redistribute it and/or modify it under the terms of the
+ * GNU General Public License as published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version. See LICENSE.
+ *
+ * Jede Methode nennt ihr Gegenstück im C-Original (baller1.c, baller2.c, market.c, cannoneer.c).
+ * Abweichungen und Erweiterungen sind mit "Burgfehde:" gekennzeichnet.
+ */
 import {
-  W, H, CELL, GRAVITY, WIND_ACC, MAX_WIND, SPEED_PER_POWDER, MAX_POWDER, DEFAULT_POWDER, TIME_SCALE, SUBSTEP,
-  HOME, SIZES, EARTH, BRICK,
+  W, H, CELL, G, STEPS_PER_SECOND, ANGLE_MAX, POWDER_MIN, POWDER_MAX, DEFAULT_AIM, SIZES, EARTH, BRICK,
 } from './constants.js';
-import { buildCastle, CASTLES } from './castles.js';
-import { generateHeights } from './terrain.js';
+import { CASTLES, buildCastle } from './castles.js';
+import { generateTerrain } from './terrain.js';
 import { sound } from './sound.js';
 import { recordResult } from './scores.js';
 
-export const BASE_PRICES = { stones: 120, cannon: 320, powder: 28, balls: 24, vane: 140, mine: 420 };
+/* ---------- original constants (baller1.c: neues(), rechnen()) ---------- */
 
-export const SHOP = [
-  { key: 'stones', label: '20 Steine', hint: 'Mauern ausbessern oder erhöhen' },
-  { key: 'cannon', label: 'Kanone', hint: 'auf eine freie Fläche stellen' },
-  { key: 'powder', label: '30 Pulver', hint: 'ein Schuss kostet 1–20' },
-  { key: 'balls', label: '2 Kugeln', hint: 'eine Kugel je Schuss' },
-  { key: 'vane', label: 'Windfahne', hint: 'zeigt die genaue Windstärke' },
-  { key: 'mine', label: 'Förderturm', hint: '+40 Gold jede Runde' },
+/** Market items in the order of the original price array p[0..5]. */
+export const MARKET = [
+  { key: 'stones', label: 'Anbauen (20 Steine)' },
+  { key: 'mine', label: 'Förderturm' },
+  { key: 'cannon', label: 'Geschütz' },
+  { key: 'vane', label: 'Windfahne' },
+  { key: 'powder', label: '30 Pulver' },
+  { key: 'balls', label: '2 Kugeln' },
+];
+const START_PRICES = [200, 500, 400, 150, 50, 50];
+const PRICE_MIN = [98, 347, 302, 102, 30, 29];
+const PRICE_MAX = [302, 707, 498, 200, 89, 91];
+const PRICE_SWING = [10, 50, 50, 20, 10, 10];
+const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
+
+/** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
+const MAX_MINES = 5;
+const MINE_LIMIT_X = 265;
+/** Original: bricks can only be laid below y = 155. */
+const BUILD_MIN_Y = 155;
+
+/**
+ * Computer strategies (original: cw[] with the seven named computer players).
+ * Burgfehde uses its own names; the behaviour per index follows comp() in baller2.c.
+ */
+export const STRATEGIES = [
+  { name: 'Knappe Kurt', desc: 'Schießt irgendwohin auf die feindliche Burg.' },
+  { name: 'Vogt Veit', desc: 'Zielt auf den König, manchmal auf Schatzkammer und Lager.' },
+  { name: 'Gräfin Grimm', desc: 'Schießt Kanonen ab und plündert die Schatzkammer.' },
+  { name: 'Baron Bombast', desc: 'Gemischte Ziele, baut Fördertürme und schießt fremde ab.' },
+  { name: 'Hauptmann Hagen', desc: 'Schießt auf Kanonen, sonst auf den König.' },
+  { name: 'Kämmerer Kuno', desc: 'Baut Fördertürme und zerstört die des Gegners.' },
+  { name: 'Die Eiserne Erna', desc: 'Kennt nur ein Ziel: den König.' },
 ];
 
-const PLACEABLE = ['cannon', 'vane', 'mine'];
 export const OBJECT_NAMES = {
-  king: 'König', cannon: 'Kanone', powder: 'Pulverlager', balls: 'Kugellager',
-  gold: 'Geldsack', vane: 'Windfahne', mine: 'Förderturm',
+  king: 'König', cannon: 'Geschütz', powder: 'Pulverkammer', balls: 'Kugelkammer',
+  gold: 'Schatzkammer', vane: 'Windfahne', mine: 'Förderturm',
+};
+const CHAMBERS = ['gold', 'powder', 'balls'];
+
+export const DEFAULT_OPTIONS = {
+  /** Original: max_rund, 0 = unlimited. */
+  maxRounds: 0,
+  /** Original: au_kap, the king capitulates in a hopeless situation. */
+  autoCapitulate: true,
+  /** Original: an_erl, laying bricks is allowed. */
+  allowBuilding: true,
+  /** Burgfehde extensions, all off by default so the game plays like the original. */
+  extensions: { landslides: false, falling: false },
 };
 
-const rand = (a, b) => a + Math.random() * (b - a);
-const randInt = (a, b) => Math.floor(rand(a, b + 1));
+/* ---------- helpers that mimic C integer arithmetic ---------- */
+
+const rnd = (n) => Math.floor(Math.random() * n); // rand() % n
+const idiv = (a, b) => Math.trunc(a / b); // C integer division
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 export class Game {
   /**
-   * @param {{players: {name:string, type:'human'|'ai', level?:number, castle:string}[]}} cfg
+   * @param {object} cfg
+   * @param {{name:string, type:'human'|'ai', strategy?:number, strength?:number, castle:string}[]} cfg.players
+   * @param {{heights: ArrayLike<number>, baseY: number[]}} [cfg.terrainData]
+   * @param {string} [cfg.terrain]
+   * @param {object} [cfg.options] see DEFAULT_OPTIONS
    * @param {() => void} onChange called whenever UI-relevant state changes
    */
   constructor(cfg, onChange = () => {}) {
     this.onChange = onChange;
+    this.options = { ...DEFAULT_OPTIONS, ...cfg.options, extensions: { ...DEFAULT_OPTIONS.extensions, ...(cfg.options?.extensions || {}) } };
+    this.messages = [];
+    this.newGame(cfg);
+  }
+
+  get cur() { return this.players[this.current]; }
+  emit() { this.onChange(); }
+
+  say(text, tone = 'info') {
+    this.messages.unshift({ id: `${Date.now()}-${Math.random()}`, text, tone, round: this.round });
+    if (this.messages.length > 8) this.messages.length = 8;
+  }
+
+  /* ======================= Spielstart (original: neues(), bild(), burg()) ======================= */
+
+  newGame(cfg) {
+    const widths = cfg.players.map((pc) => CASTLES[pc.castle].width);
+    const terrain = cfg.terrainData || generateTerrain(cfg.terrain || 'klassisch', widths);
+    this.heights = Float32Array.from(terrain.heights);
+    this.baseY = terrain.baseY.slice();
     this.solid = new Uint8Array(W * H);
-    this.heights = cfg.heights ? Float32Array.from(cfg.heights) : generateHeights(cfg.terrain);
     for (let x = 0; x < W; x++)
-      for (let y = Math.ceil(this.heights[x]); y < H; y++) this.solid[y * W + x] = EARTH;
+      for (let y = Math.max(0, Math.ceil(this.heights[x])); y < H; y++) this.solid[y * W + x] = EARTH;
 
     this.objects = [];
     this.nextId = 1;
     this.players = cfg.players.map((pc, i) => {
       const c = CASTLES[pc.castle];
+      const built = buildCastle(pc.castle, i, this.baseY[i]);
+      for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) this.solid[y * W + x] = m;
+      built.objects.forEach((o) => this.addObject(o.type, i, o.x, o.y));
       return {
-        idx: i, name: pc.name, type: pc.type, level: pc.level || 2, castle: pc.castle,
-        ...c.start, tax: 20, stones: 0, owed: { cannon: 0, vane: 0, mine: 0 },
-        firstTurn: true, lastIncome: 0, popChange: 0, shots: 0, hits: 0,
+        idx: i, name: pc.name, type: pc.type, castle: pc.castle,
+        strategy: pc.strategy ?? 2, strength: clamp(pc.strength ?? 2, 1, 4),
+        money: c.start.money, powder: c.start.powder, balls: c.start.balls, pop: c.start.pop,
+        startPop: c.start.pop, caps: { ...c.caps },
+        tax: 20, // original: st[n] = 20
+        visits: 0, visitStreak: 0, visitedThisTurn: false, lastAudience: null, // original: kn[n]
+        width: built.width, cannonSlots: built.cannonSlots, vaneSlot: built.vaneSlot,
+        lastIncome: 0, popChange: 0, shots: 0, hits: 0,
       };
     });
-    this.players.forEach((p, i) => {
-      const { bricks, objects } = buildCastle(p.castle, i);
-      bricks.forEach(([x, y]) => this.fillBrick(x, y, BRICK + i));
-      p.originalBricks = bricks;
-      objects.forEach((o) => this.addObject(o.type, i, o.x, o.y));
-    });
 
-    this.wind = randInt(-6, 6);
+    // original: wnd = rand()%60-30; prices p[j] = pr[j]*(95+rand()%11)/100
+    this.wind = rnd(60) - 30;
+    this.prices = Object.fromEntries(MARKET.map((m, j) => [m.key, idiv(START_PRICES[j] * (95 + rnd(11)), 100)]));
+    this.move = 0; // original: zug
     this.round = 1;
-    this.current = Math.random() < 0.5 ? 0 : 1;
-    this.starter = this.current;
-    this.prices = { ...BASE_PRICES };
     this.projectile = null;
     this.particles = [];
     this.flashes = [];
     this.blasts = [];
-    this.messages = [];
     this.phase = 'idle';
     this.winner = null;
     this.endReason = '';
     this.selected = null;
-    this.placing = null;
+    this.building = null;
     this.shake = 0;
-    this.accum = 0;
+    this.stepAcc = 0;
     this.aiTimer = 0;
     this.aiStep = null;
-    this.autoEnd = 0;
+    this.turnEnding = 0;
     this.terrainDirty = true;
-    this.say(`Die Fehde beginnt. ${this.cur.name} hat den ersten Zug.`, 'big');
-    this.startTurn(true);
+    this.say('Eine neue Fehde beginnt.', 'big');
+    this.startMove();
   }
 
-  get cur() { return this.players[this.current]; }
-  get foe() { return this.players[1 - this.current]; }
-  emit() { this.onChange(); }
-
-  say(text, tone = 'info') {
-    this.messages.unshift({ id: `${Date.now()}-${Math.random()}`, text, tone, round: this.round });
-    if (this.messages.length > 7) this.messages.length = 7;
-  }
-
-  /* ---------- world helpers ---------- */
+  /* ======================= world helpers ======================= */
 
   fillBrick(x, y, t) {
     for (let j = 0; j < CELL; j++)
@@ -104,7 +172,7 @@ export class Game {
 
   addObject(type, owner, x, y) {
     const [w, h] = SIZES[type];
-    const o = { id: this.nextId++, type, owner, x, y, w, h, alive: true, fired: false, aim: { angle: 45, powder: DEFAULT_POWDER }, fall: null, lastTrail: null };
+    const o = { id: this.nextId++, type, owner, x, y, w, h, alive: true, aim: { ...DEFAULT_AIM }, fall: null, lastTrail: null };
     this.objects.push(o);
     return o;
   }
@@ -112,12 +180,28 @@ export class Game {
   obj(id) { return this.objects.find((o) => o.id === id) || null; }
   objectsOf(owner, type) { return this.objects.filter((o) => o.alive && o.owner === owner && (!type || o.type === type)); }
   hasVane(owner) { return this.objectsOf(owner, 'vane').length > 0; }
+  /** Original: f = 1 - 2*(n&1), the direction a side shoots in. */
+  dir(side) { return side === 0 ? 1 : -1; }
 
   isSolid(x, y) {
     x |= 0; y |= 0;
-    if (x < 0 || x >= W || y < 0) return false;
+    if (x < 0 || x >= W) return false;
+    if (y < 0) return this.heights[x] < y; // Burgfehde: mountains may rise above the screen
     if (y >= H) return true;
     return this.solid[y * W + x] !== 0;
+  }
+
+  /** Original: loc() — is there anything drawn at this point (ground, wall or castle part)? */
+  loc(x, y, ignoreId) {
+    if (this.isSolid(x, y)) return true;
+    for (const o of this.objects)
+      if (o.alive && o.id !== ignoreId && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+    return false;
+  }
+
+  rectFree(x, y, w, h, ignoreId) {
+    for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (this.loc(i, j, ignoreId)) return false;
+    return true;
   }
 
   supported(o) {
@@ -127,214 +211,305 @@ export class Game {
     return false;
   }
 
-  rectFree(x, y, w, h, gap = 0) {
-    for (let j = y; j < y + h; j++)
-      for (let i = x; i < x + w; i++) if (this.isSolid(i, j)) return false;
-    return !this.objects.some((o) => o.alive && x < o.x + o.w + gap && x + w + gap > o.x && y < o.y + o.h + gap && y + h + gap > o.y);
+  /** Original: drin() — is (x, y) inside the box, widened by r pixels? */
+  near(o, x, y, r) {
+    return x >= o.x - r && x < o.x + o.w + r && y >= o.y - r && y < o.y + o.h + r;
   }
 
-  /* ---------- turn flow ---------- */
+  /* ======================= Zugablauf (original: ein_zug()) ======================= */
 
-  startTurn(first = false) {
+  startMove() {
+    // original: n = zug&1 — the left castle always opens the game
+    this.current = this.move & 1;
     const p = this.cur;
-    if (!first) this.wind = clamp(this.wind + randInt(-3, 3), -MAX_WIND, MAX_WIND);
-    if (!p.firstTurn) this.economy(p);
-    p.firstTurn = false;
-    for (const k of Object.keys(BASE_PRICES)) this.prices[k] = Math.round(BASE_PRICES[k] * rand(0.9, 1.12));
+    // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
+    p.visitedThisTurn = false;
+    if (this.move > 0) this.wind = idiv(this.wind * 9, 10) + rnd(12) - 6;
     this.hasFired = false;
-    this.autoEnd = 0;
-    this.placing = null;
-    if (this.checkSurrender(p)) return;
-
-    if (p.type === 'ai') {
+    this.building = null;
+    if (this.cur.type === 'ai') {
       this.phase = 'ai';
-      this.aiStep = 'shop';
-      this.aiTimer = 1.0;
+      this.aiTimer = 0.9;
       this.selected = null;
     } else {
       this.phase = 'aim';
-      const cs = this.objectsOf(this.current, 'cannon');
-      this.selected = cs[0]?.id ?? null;
-      if (p.owed.cannon + p.owed.vane + p.owed.mine > 0) this.say(`${p.name}: Gekaufte Teile warten noch auf ihren Platz.`);
+      this.selected = this.objectsOf(this.current, 'cannon')[0]?.id ?? null;
     }
     this.emit();
   }
 
-  economy(p) {
-    const income = this.expectedIncome(p);
-    p.money += income;
-    p.lastIncome = income;
-    const growth = (0.12 - p.tax / 100) * 0.15;
-    const before = p.pop;
-    p.pop = clamp(Math.round(p.pop * (1 + growth) + (growth > 0 ? 1 : -1)), 0, 500);
-    p.popChange = p.pop - before;
+  /** Original: the "Fertig" button — end the move without a shot. */
+  pass() {
+    if (this.phase !== 'aim' && this.phase !== 'ai') return;
+    this.building = null;
+    this.finishMove();
   }
 
-  expectedIncome(p) {
-    const base = Math.round((p.pop * p.tax) / 100 * 1.4);
-    return (this.objectsOf(p.idx, 'gold').length ? base : Math.round(base / 2)) + this.objectsOf(p.idx, 'mine').length * 40;
+  /** Original: end of ein_zug() — rechnen(), zug++, capitulation and round-limit checks. */
+  finishMove() {
+    const mover = this.cur;
+    if (!mover.visitedThisTurn) mover.visitStreak = 0; // original: if (~kn&16) kn &= ~15
+    this.reckon(mover);
+    if (this.phase === 'over') return;
+    this.move++;
+    this.round = Math.floor(this.move / 2) + 1;
+    const next = this.players[this.move & 1];
+
+    const nextCannons = this.objectsOf(next.idx, 'cannon').length;
+    const moverCannons = this.objectsOf(mover.idx, 'cannon').length;
+    if (nextCannons === 0 && moverCannons > 0 && next.startPop > next.pop && next.money < idiv(this.prices.cannon, 3)
+        && this.options.autoCapitulate && this.objectsOf(next.idx, 'mine').length === 0) {
+      this.end(mover.idx, 'capitulation', next);
+      return;
+    }
+    if (this.options.maxRounds && Math.floor(this.move / 2) >= this.options.maxRounds) {
+      const [a, b] = this.players.map((pl) => this.wealth(pl));
+      const winner = b < a ? 0 : 1;
+      this.end(winner, 'rounds', this.players[1 - winner]);
+      return;
+    }
+    this.startMove();
   }
 
-  checkSurrender(p) {
-    const cannons = this.objectsOf(p.idx, 'cannon').length + p.owed.cannon;
-    // The king only gives up when even two more rounds of taxes would not buy what is missing.
-    const reach = p.money + 2 * this.expectedIncome(p);
-    let reason = null;
-    if (p.pop <= 0) reason = `Das Volk von ${p.name} hat die Burg verlassen.`;
-    else if (cannons === 0 && reach < this.prices.cannon) reason = `${p.name} hat keine Kanone mehr und kann sich keine neue leisten. Der König kapituliert.`;
-    else if (p.balls === 0 && reach < this.prices.balls) reason = `${p.name} hat keine Kugeln mehr und kann keine kaufen. Der König kapituliert.`;
-    else if (p.powder < 2 && reach < this.prices.powder) reason = `${p.name} hat kein Pulver mehr und kann keins kaufen. Der König kapituliert.`;
-    if (!reason) return false;
-    this.say(reason, 'big');
-    this.gameOver(1 - p.idx, reason);
-    return true;
+  /** Original: rechnen() — taxes, population, shaft towers and market prices after each move. */
+  reckon(p) {
+    const j = p.tax;
+    const moneyBefore = p.money;
+    p.money += idiv(p.pop * (j > 65 ? 130 - j : j), 150 - rnd(50));
+    const popBefore = p.pop;
+    p.pop = idiv(p.pop * (95 + rnd(11)), 100) + idiv((21 - j + rnd(9)) * (8 + rnd(5)), 20);
+    for (let i = 0; i < this.objectsOf(p.idx, 'mine').length; i++) p.money += 40 + rnd(31);
+    p.money = Math.min(p.money, p.caps.money); // original: drw_gpk() caps money to what the chamber holds
+    p.lastIncome = p.money - moneyBefore;
+    p.popChange = p.pop - popBefore;
+    MARKET.forEach((m, k) => {
+      let v = this.prices[m.key] + idiv(PRICE_SWING[k] * rnd(99), 98) - idiv(PRICE_SWING[k], 2);
+      this.prices[m.key] = clamp(v, PRICE_MIN[k], PRICE_MAX[k]);
+    });
+    if (p.pop < 0) {
+      p.pop = 0;
+      this.end(1 - p.idx, 'folk', p);
+    }
+  }
+
+  /** Original: the value comparison when max_rund is reached. */
+  wealth(p) {
+    const pr = this.prices;
+    return p.money + idiv(p.powder * pr.powder, 30) + idiv(p.balls * pr.balls, 2) + (this.hasVane(p.idx) ? pr.vane : 0)
+      + p.pop * 4 + this.objectsOf(p.idx, 'mine').length * pr.mine + this.objectsOf(p.idx, 'cannon').length * pr.cannon;
+  }
+
+  /** Original: ende() */
+  end(winner, kind, loser) {
+    if (this.phase === 'over') return;
+    const texts = {
+      king: `Der König von ${loser.name} wurde getroffen, daraufhin hat das Volk kapituliert.`,
+      capitulation: `Der König von ${loser.name} hat wegen der aussichtslosen Lage kapituliert.`,
+      folk: `${loser.name} hat kein Volk mehr.`,
+      rounds: `Das Rundenlimit ist erreicht, ${loser.name} steht schlechter da.`,
+      surrender: `Der König von ${loser.name} hisst die weiße Fahne.`,
+    };
+    this.phase = 'over';
+    this.winner = winner;
+    this.endKind = kind;
+    this.endReason = texts[kind];
+    this.building = null;
+    this.say(this.endReason, 'big');
+    recordResult(this.players[winner].name, this.players[1 - winner].name);
+    sound.fanfare();
+    this.emit();
   }
 
   surrender() {
     if (this.phase !== 'aim') return;
-    const reason = `Der König von ${this.cur.name} hisst die weiße Fahne.`;
-    this.say(reason, 'big');
-    this.gameOver(1 - this.current, reason);
+    this.end(1 - this.current, 'surrender', this.cur);
   }
 
-  endTurn() {
-    if (this.phase === 'over' || this.projectile || this.blasts.length) return;
-    if (this.phase !== 'aim' && this.phase !== 'ai') return;
-    this.current = 1 - this.current;
-    if (this.current === this.starter) this.round++;
-    this.startTurn();
-  }
+  /* ======================= Schuss (original: sch_obj(), schuss()) ======================= */
 
-  gameOver(winner, reason) {
-    if (this.phase === 'over') return;
-    this.phase = 'over';
-    this.winner = winner;
-    this.endReason = reason;
-    this.placing = null;
-    this.aiStep = null;
-    const w = this.players[winner], l = this.players[1 - winner];
-    recordResult(w.name, l.name);
-    if (w.type === 'human' || l.type === 'ai') sound.fanfare();
-    this.emit();
+  /** Original: ein_zug() refuses the cannon dialog without at least 5 powder or without a ball. */
+  shotProblem(p = this.cur) {
+    if (p.powder < POWDER_MIN) return 'Du hast nicht genug Pulver.';
+    if (p.balls === 0) return 'Du hast keine Kugeln mehr.';
+    return null;
   }
-
-  /** Verdict of the winning king on the winner's marksmanship, shown at the end. */
-  verdict(p) {
-    const q = p.shots ? p.hits / p.shots : 0;
-    if (p.shots === 0) return 'Gewonnen, ohne einen Schuss abzugeben. Bemerkenswert.';
-    if (q >= 0.6) return 'Meisterhaft. Die Kanoniere bekommen doppelten Sold.';
-    if (q >= 0.35) return 'Ordentlich geschossen. Der Hof ist zufrieden.';
-    if (q >= 0.15) return 'Viel Pulver für wenig Treffer, aber gewonnen ist gewonnen.';
-    return 'Der Sieg kam eher trotz als wegen der Kanoniere.';
-  }
-
-  /* ---------- shooting ---------- */
 
   canFire(c) {
-    const p = this.cur;
-    return !!c && c.alive && !c.fall && c.owner === this.current && !this.hasFired && p.balls > 0 && p.powder >= 1;
+    return !!c && c.alive && c.owner === this.current && !this.hasFired && !this.shotProblem() && (this.phase === 'aim' || this.phase === 'ai');
   }
 
-  muzzle(c, angle) {
-    const dir = c.owner === 0 ? 1 : -1;
-    const a = (angle * Math.PI) / 180;
-    const px = c.x + c.w / 2, py = c.y + 3;
-    return { x: px + dir * Math.cos(a) * 9, y: py - Math.sin(a) * 9, dir, a };
+  /** Burgfehde: the muzzle of our cannon sprite. Original: x = ka.x+10+7*f, y = ka.y-10. */
+  muzzle(c) {
+    return { x: c.x + c.w / 2 + this.dir(c.owner) * 7, y: c.y - 2 };
   }
 
+  /**
+   * Original: schuss() for a human shot. Angle 0..180 (above 90 shoots backwards), powder 5..20.
+   * Start speed per flight step is 0.4 + 0.25 * powder.
+   */
   fire(id, angle, powder) {
-    if (this.phase !== 'aim' && this.phase !== 'ai') return false;
     const c = this.obj(id);
     if (!this.canFire(c)) return false;
+    angle = clamp(Math.round(angle), 0, ANGLE_MAX);
+    powder = clamp(Math.round(powder), POWDER_MIN, Math.min(POWDER_MAX, this.cur.powder));
+    c.aim = { angle, powder };
+    const v = 0.4 + 0.25 * powder;
+    const a = angle / 57.296;
+    return this.launch(c, powder, v * Math.cos(a) * this.dir(c.owner), v * Math.sin(a));
+  }
+
+  launch(c, cost, vx, vy) {
     const p = this.cur;
-    powder = clamp(Math.round(powder), 1, Math.min(MAX_POWDER, p.powder));
-    angle = clamp(Math.round(angle), 0, 90);
-    p.powder -= powder;
+    p.powder = Math.max(0, p.powder - cost);
     p.balls -= 1;
     p.shots++;
     this.hasFired = true;
-    c.aim = { angle, powder };
-    const m = this.muzzle(c, angle);
-    const v = powder * SPEED_PER_POWDER;
-    this.projectile = { x: m.x, y: m.y, vx: m.dir * Math.cos(m.a) * v, vy: -Math.sin(m.a) * v, ignore: c.id, owner: c.owner, cannon: c.id, trail: [], steps: 0 };
+    const m = this.muzzle(c);
+    this.projectile = { x: m.x, y: m.y, vx, vy, owner: c.owner, cannon: c.id, trail: [] };
     this.returnPhase = this.phase;
     this.phase = 'flying';
-    this.placing = null;
+    this.building = null;
     sound.shot();
     this.emit();
     return true;
   }
 
-  hitTest(x, y, ignoreId) {
-    const px = x | 0, py = y | 0;
-    if (py >= H) return { solid: true };
-    if (px < 0 || px >= W) return null;
-    if (py < 0) return this.heights[px] < py ? { solid: true } : null;
-    if (this.solid[py * W + px]) return { solid: true };
-    if (px < 200 || px > 440) {
-      for (const o of this.objects)
-        if (o.alive && o.id !== ignoreId && px >= o.x && px < o.x + o.w && py >= o.y && py < o.y + o.h) return { obj: o };
-    }
-    return null;
-  }
-
+  /** Original: the flight loop in schuss(). One call is one flight step. */
   stepProjectile() {
     const pr = this.projectile;
-    pr.vx += this.wind * WIND_ACC * SUBSTEP;
-    pr.vy += GRAVITY * SUBSTEP;
-    pr.x += pr.vx * SUBSTEP;
-    pr.y += pr.vy * SUBSTEP;
-    if (++pr.steps % 3 === 0) pr.trail.push([pr.x, pr.y]);
-    if (pr.x < -4 || pr.x > W + 4 || pr.steps > 120 * 30) {
+    const ox = pr.x, oy = pr.y;
+    pr.x += pr.vx;
+    pr.y -= pr.vy;
+    pr.vy -= G;
+    pr.vx += (this.wind / 2 - pr.vx) / 5000;
+    if ((pr.steps = (pr.steps || 0) + 1) % 2 === 0) pr.trail.push([pr.x, pr.y]);
+
+    if (!(pr.x > 3 && pr.x < 637 && pr.y < 396)) {
       this.say('Die Kugel fliegt aus dem Feld.');
-      this.finishProjectile();
+      this.endFlight(pr);
       return;
     }
-    if (this.hitTest(pr.x, pr.y, pr.ignore)) {
-      this.finishProjectile();
-      this.explode(pr.x, pr.y, 1, pr.owner);
+    let free = true;
+    if (pr.x >= 3 && pr.x <= 637 && pr.y <= 397) {
+      const x = pr.x | 0, y = pr.y | 0;
+      free = !this.loc(x, y, pr.cannon);
+      for (let i = -1; i <= 1 && free; i++)
+        free = !this.loc(x - 2, y + i, pr.cannon) && !this.loc(x + 2, y + i, pr.cannon) && !this.loc(x + i, y + 2, pr.cannon);
+    }
+    if (!free) {
+      this.endFlight(pr);
+      this.impact(ox, oy, pr.vx, pr.vy, pr.owner);
     }
   }
 
-  finishProjectile() {
-    const pr = this.projectile;
+  endFlight(pr) {
     const c = this.obj(pr.cannon);
     if (c) c.lastTrail = pr.trail.concat([[pr.x, pr.y]]);
     this.projectile = null;
   }
 
-  explode(x, y, power, by) {
-    const re = Math.round(8 * power), rb = Math.round(5 * power);
-    const x0 = x | 0, y0 = y | 0;
-    for (let dy = -re; dy <= re; dy++)
-      for (let dx = -re; dx <= re; dx++) {
+  /**
+   * Original: "Einschlag der Kugel" in schuss(). Starting at the last free position the ball
+   * clears four circles of radius 5 along its path. Each circle may cost a citizen of a castle
+   * it lands in, destroys cannons, shaft towers and weather vanes it touches, empties store rooms
+   * and ends the game when it hits a throne. Store rooms, towers and the throne stop the ball.
+   */
+  impact(x, y, vx, vy, by) {
+    let xa = x, xb = x;
+    for (let c = 0; c < 4; c++) {
+      this.carve(x, y, 5);
+      sound.boom(1);
+      xa = Math.min(xa, x);
+      xb = Math.max(xb, x);
+      let stop = false;
+      for (let side = 0; side < 2; side++) {
+        const pl = this.players[side];
+        const inCastle = side ? x > 639 - pl.width : x < pl.width;
+        if (Math.random() < 0.5 && inCastle && pl.pop) pl.pop--;
+        for (const o of this.objectsOf(side)) {
+          if (o.type === 'cannon' && this.near(o, x, y, 2)) this.destroy(o, by);
+          else if (o.type === 'mine' && this.near(o, x, y, 2)) { this.destroy(o, by); stop = true; }
+          else if (o.type === 'vane' && this.near(o, x, y, 3)) this.destroy(o, by);
+          else if (o.type === 'king' && this.near(o, x, y, 3)) { this.destroy(o, by); stop = true; }
+          else if (CHAMBERS.includes(o.type) && this.near(o, x, y, 3)) { this.hitChamber(o, by); stop = true; }
+        }
+      }
+      if (stop || this.phase === 'over') break;
+      x += vx;
+      y -= vy;
+    }
+    if (this.options.extensions.landslides) this.settleEarth((xa | 0) - 7, (xb | 0) + 7);
+    this.terrainDirty = true;
+    this.flashes.push({ x, y, r: 16, t: 0, life: 0.45 });
+    this.shake = Math.min(7, this.shake + 3);
+    if (this.options.extensions.falling) this.checkSupport();
+  }
+
+  carve(x, y, r) {
+    const x0 = Math.round(x), y0 = Math.round(y);
+    for (let dy = -r; dy <= r; dy++)
+      for (let dx = -r; dx <= r; dx++) {
         const px = x0 + dx, py = y0 + dy;
-        if (px < 0 || px >= W || py < 0 || py >= H) continue;
+        if (px < 0 || px >= W || py < 0 || py >= H || dx * dx + dy * dy > r * r) continue;
         const i = py * W + px;
         const t = this.solid[i];
         if (!t) continue;
-        const d2 = dx * dx + dy * dy;
-        if (t === EARTH ? d2 <= re * re : d2 <= rb * rb) {
-          this.solid[i] = 0;
-          if (Math.random() < 0.12) this.spawnDebris(px, py, t === EARTH ? '#5a4436' : t === BRICK ? '#c9a26b' : '#93a6bb');
-        }
+        this.solid[i] = 0;
+        if (Math.random() < 0.15) this.spawnDebris(px, py, t === EARTH ? '#5a4436' : t === BRICK ? '#c9a26b' : '#93a6bb');
       }
-    this.settleEarth(x0 - re - 1, x0 + re + 1);
-    this.terrainDirty = true;
-    this.flashes.push({ x, y, r: re * 1.7, t: 0, life: 0.4 });
-    this.shake = Math.min(7, this.shake + 3.5 * power);
-    sound.boom(power);
-
-    const reach = 4 * power;
-    for (const o of this.objects) {
-      if (!o.alive) continue;
-      const cx = clamp(x, o.x, o.x + o.w), cy = clamp(y, o.y, o.y + o.h);
-      if (Math.hypot(x - cx, y - cy) <= reach) this.destroy(o, by);
-    }
-    this.checkSupport();
   }
 
-  /** Loose earth above a crater slides down until it rests on something. Bricks stay where they are. */
+  destroy(o, by, cause = 'hit') {
+    if (!o.alive) return;
+    const owner = this.players[o.owner];
+    if (o.type === 'king') {
+      o.alive = false;
+      this.burst(o);
+      if (by !== undefined && by !== o.owner) this.players[by].hits++;
+      this.end(1 - o.owner, 'king', owner);
+      return;
+    }
+    o.alive = false;
+    o.fall = null;
+    this.burst(o);
+    if (by !== undefined && by !== o.owner) this.players[by].hits++;
+    const own = by === o.owner ? ' (eigener Treffer)' : '';
+    this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${cause === 'fall' ? 'stürzt ab' : 'zerstört'}${own}.`, 'hit');
+  }
+
+  /** Original: store rooms are part of the castle; a hit costs up to 200 gold, all powder or 2 balls. */
+  hitChamber(o, by) {
+    const owner = this.players[o.owner];
+    const own = by === o.owner ? ' (eigener Treffer)' : '';
+    if (by !== undefined && by !== o.owner) this.players[by].hits++;
+    this.burst(o, 10);
+    if (o.type === 'gold') {
+      const loss = Math.min(200, owner.money);
+      owner.money -= loss;
+      this.say(`Treffer in der Schatzkammer von ${owner.name}: ${loss} Gold verloren${own}.`, 'hit');
+    } else if (o.type === 'powder') {
+      const lost = owner.powder;
+      owner.powder = 0;
+      this.say(`Die Pulverkammer von ${owner.name} fliegt in die Luft: ${lost} Pulver verloren${own}.`, 'hit');
+      this.flashes.push({ x: o.x + o.w / 2, y: o.y + o.h / 2, r: 30, t: 0, life: 0.7 });
+      this.shake = Math.min(9, this.shake + 4);
+    } else {
+      const lost = Math.min(2, owner.balls);
+      owner.balls -= lost;
+      this.say(`Treffer in der Kugelkammer von ${owner.name}: ${lost} Kugeln verloren${own}.`, 'hit');
+    }
+  }
+
+  burst(o, n = 18) {
+    for (let i = 0; i < n; i++) this.spawnDebris(o.x + Math.random() * o.w, o.y + Math.random() * o.h, ['#ffd23f', '#f4f1e8', '#7a4b2a', '#2b2d33'][i % 4]);
+  }
+
+  spawnDebris(x, y, col) {
+    if (this.particles.length > 600) return;
+    this.particles.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: -20 - Math.random() * 90, life: 0.6 + Math.random() * 0.8, col });
+  }
+
+  /** Burgfehde extension: loose earth above a crater slides down. */
   settleEarth(xa, xb) {
     const blocked = (x, y) => y >= H || this.solid[y * W + x] !== 0 || this.objects.some((o) => o.alive && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
     let moved = 0;
@@ -347,77 +522,284 @@ export class Game {
         this.solid[i] = 0;
         this.solid[ny * W + x] = EARTH;
         moved++;
-        if (moved % 9 === 0) this.spawnDebris(x, ny, '#5a4436');
       }
-      let top = 0;
-      while (top < H && this.solid[top * W + x] === 0) top++;
-      if (this.heights[x] >= 0) this.heights[x] = top;
     }
-    if (moved > 40) {
-      this.shake = Math.min(7, this.shake + 1.5);
-      if (moved > 400) this.say('Ein Hang rutscht ab.');
-    }
+    if (moved > 400) this.say('Ein Hang rutscht ab.');
   }
 
+  /** Burgfehde extension: castle parts without support fall down. */
   checkSupport() {
     for (const o of this.objects)
       if (o.alive && !o.fall && !this.supported(o)) o.fall = { vy: 0, acc: 0, startY: o.y };
   }
 
-  destroy(o, by, cause = 'hit') {
-    if (!o.alive) return;
-    o.alive = false;
-    o.fall = null;
-    const owner = this.players[o.owner];
-    if (by !== undefined && by !== o.owner) this.players[by].hits++;
-    for (let i = 0; i < 18; i++) this.spawnDebris(o.x + Math.random() * o.w, o.y + Math.random() * o.h, ['#ffd23f', '#f4f1e8', '#7a4b2a', '#2b2d33'][i % 4]);
-    const own = by === o.owner ? ' (eigener Treffer)' : '';
-    const how = cause === 'fall' ? 'stürzt ab' : 'getroffen';
-    switch (o.type) {
-      case 'king':
-        this.say(`Der König von ${owner.name} ist gefallen${own}.`, 'big');
-        this.gameOver(1 - o.owner, `Der König von ${owner.name} wurde ${cause === 'fall' ? 'vom Einsturz begraben' : 'getroffen'}.`);
-        break;
-      case 'powder':
-        this.say(`Das Pulverlager von ${owner.name} fliegt in die Luft. ${owner.powder} Pulver verloren${own}.`, 'hit');
-        owner.powder = 0;
-        this.blasts.push({ x: o.x + o.w / 2, y: o.y + o.h / 2, power: 1.7, delay: 0.25, by });
-        break;
-      case 'balls':
-        this.say(`Das Kugellager von ${owner.name} ist zerstört. ${owner.balls} Kugeln verloren${own}.`, 'hit');
-        owner.balls = 0;
-        break;
-      case 'gold': {
-        const sacks = this.objectsOf(o.owner, 'gold').length + 1;
-        const loss = Math.floor(owner.money / sacks);
-        owner.money -= loss;
-        this.say(`Ein Geldsack von ${owner.name} ist zerfetzt. ${loss} Gold verloren${own}.`, 'hit');
-        break;
-      }
-      default:
-        this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${how}${own}.`, 'hit');
+  /* ======================= Markt (original: markt(), anbau(), fturm(), init_ka()) ======================= */
+
+  setTax(v) {
+    if (this.phase !== 'aim') return;
+    this.cur.tax = clamp(v, 0, 100); // original: steps of 2 between 0 and 100
+    this.emit();
+  }
+
+  /** Original: init_ka() looks for the first cannon slot that is free and has room above it. */
+  freeCannonSlot(p = this.cur) {
+    const taken = this.objectsOf(p.idx, 'cannon');
+    const [w, h] = SIZES.cannon;
+    return p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h) && this.rectFree(s.x, s.y, w, h)) || null;
+  }
+
+  /** Original: fturm() places towers side by side in front of the castle, on the ground. */
+  nextMineSpot(p = this.cur) {
+    const mines = this.objectsOf(p.idx, 'mine').length;
+    if (mines >= MAX_MINES) return null;
+    const [w, h] = SIZES.mine;
+    const offset = p.width + 8 + mines * 22;
+    if (offset + w > MINE_LIMIT_X) return null;
+    const x = p.idx === 0 ? offset : W - offset - w;
+    let top = H;
+    for (let i = x; i < x + w; i++) {
+      let y = 0;
+      while (y < H && !this.isSolid(i, y)) y++;
+      top = Math.min(top, y);
+    }
+    return top - h >= 0 ? { x, y: top - h } : null;
+  }
+
+  /** Original: market items are greyed out when unaffordable or not possible. */
+  canBuy(key, p = this.cur) {
+    if (p.money < this.prices[key]) return false;
+    switch (key) {
+      case 'stones': return this.options.allowBuilding;
+      case 'mine': return !!this.nextMineSpot(p);
+      case 'cannon': return !!this.freeCannonSlot(p);
+      case 'vane': return !this.hasVane(p.idx) && !!p.vaneSlot;
+      case 'powder': return p.powder < p.caps.powder;
+      case 'balls': return p.balls < p.caps.balls;
+      default: return false;
     }
   }
 
-  spawnDebris(x, y, col) {
-    if (this.particles.length > 600) return;
-    this.particles.push({ x, y, vx: rand(-60, 60), vy: rand(-110, -20), life: rand(0.6, 1.4), col });
+  buy(key) {
+    const p = this.cur;
+    if ((this.phase !== 'aim' && this.phase !== 'ai') || !this.canBuy(key, p)) { if (p.type === 'human') sound.error(); return false; }
+    p.money -= this.prices[key];
+    switch (key) {
+      case 'stones':
+        this.building = { left: 20 }; // original: anbau() lets you lay 20 bricks
+        break;
+      case 'mine': {
+        const s = this.nextMineSpot(p);
+        this.addObject('mine', p.idx, s.x, s.y);
+        break;
+      }
+      case 'cannon': {
+        const s = this.freeCannonSlot(p);
+        const c = this.addObject('cannon', p.idx, s.x, s.y);
+        if (p.type === 'human') this.selected = c.id;
+        break;
+      }
+      case 'vane':
+        this.addObject('vane', p.idx, p.vaneSlot.x, p.vaneSlot.y);
+        break;
+      case 'powder':
+        p.powder = Math.min(p.caps.powder, p.powder + 30);
+        break;
+      case 'balls':
+        p.balls = Math.min(p.caps.balls, p.balls + 2);
+        break;
+    }
+    if (p.type === 'human') sound.coin();
+    this.emit();
+    return true;
   }
 
-  /* ---------- per-frame update ---------- */
+  /** Original anbau(): bricks go next to existing ground or wall, on your own side, below y = 155. */
+  brickSpot(lx, ly, side = this.current) {
+    const x = Math.floor(lx / CELL) * CELL, y = Math.floor(ly / CELL) * CELL;
+    const width = this.players[side].width;
+    const inZone = side === 0 ? x + CELL <= width + 15 : x >= W - width - 15;
+    if (!inZone || y < BUILD_MIN_Y || y + CELL > H) return null;
+    if (!this.rectFree(x, y, CELL, CELL)) return null;
+    const touches = this.isSolid(x + 1, y + CELL) || this.isSolid(x - 1, y + 1) || this.isSolid(x + CELL, y + 1) || this.isSolid(x + 1, y - 1);
+    return touches ? { x, y, w: CELL, h: CELL } : null;
+  }
+
+  layBrick(lx, ly) {
+    if (!this.building || this.phase !== 'aim') return false;
+    const s = this.brickSpot(lx, ly);
+    if (!s) { sound.error(); return false; }
+    this.fillBrick(s.x, s.y, BRICK + this.current);
+    sound.click();
+    if (--this.building.left <= 0) this.building = null;
+    this.emit();
+    return true;
+  }
+
+  /** Original: a right click ends laying bricks; the rest of the 20 bricks is lost. */
+  stopBuilding() {
+    this.building = null;
+    this.emit();
+  }
+
+  /* ======================= König (original: koenig()) ======================= */
+
+  /**
+   * The king's audience. Conditions follow koenig() in baller2.c; the wording is Burgfehde's.
+   * He refuses when visited twice in one move, too often in a row, or at random (1 in 20).
+   */
+  audience() {
+    const p = this.cur;
+    if (this.phase !== 'aim') return null;
+    const cannons = this.objectsOf(p.idx, 'cannon').length;
+    const mines = this.objectsOf(p.idx, 'mine').length;
+    let result;
+    if (!rnd(20) || p.visitedThisTurn || p.visitStreak > 9) {
+      result = { refused: true, text: 'Der König ist nicht in der Stimmung, Euch zu empfangen.' };
+    } else {
+      const j = rnd(8);
+      const s = [j & 1 ? 'Nun ja … gut … macht weiter.' : 'Schön, Euch zu sehen.',
+        j & 2 ? 'Verdient mehr Geld, baut mehr Fördertürme und besiegt den Feind.' : 'Ihr solltet Euch gefälligst mehr anstrengen.'];
+      if (j & 4) s.push('Es freut Uns, dass Ihr vorbeischaut.');
+      if (p.money > this.prices.mine && mines < 3) s.push('Warum kauft Ihr nicht einen Förderturm …');
+      if ((p.tax > 40 && p.pop < p.startPop) || p.tax > 70) s.push('Vielleicht solltet Ihr Unsere Steuern senken …');
+      if (!this.hasVane(p.idx)) s.push('Seid Ihr sicher, dass Ihr ohne Windfahne zurechtkommt?');
+      if (p.money > CASTLES[p.castle].start.money && p.pop > p.startPop && cannons > 1) s[1] = mines < 2 ? 'Wir sind mit Euren Leistungen zufrieden.' : 'Ausgezeichnet, weiter so!';
+      if (mines > 2) s.push('Ausgezeichnet, weiter so!');
+      if (cannons < 1 && p.money < this.prices.cannon) s.push('Wenn das so weitergeht, entlassen Wir Euch!');
+      if (p.visitStreak > 4) s.push('Ihr müsst Uns nicht jede Runde besuchen.', 'Ihr müsst Uns nicht jede Runde besuchen.', 'Ihr müsst Uns nicht jede Runde besuchen.');
+      if (p.visitStreak > 6 || (!rnd(8) && p.visits > 8)) s.push(`Wisst Ihr, dass Ihr Uns schon ${p.visits}-mal besucht habt?`);
+      if (this.move < 4) { s.length = 0; s.push('Was sollen Wir in so einer frühen Phase schon sagen?'); }
+      let text = s[rnd(s.length)];
+      if (text === p.lastAudience) text = 'Wir haben Euch nichts Neues zu sagen.';
+      p.lastAudience = text;
+      result = { text };
+    }
+    p.visitedThisTurn = true;
+    p.visits++;
+    p.visitStreak++;
+    return result;
+  }
+
+  /* ======================= Computer (original: comp(), z_kn() … z_pk()) ======================= */
+
+  aiAct() {
+    const p = this.cur;
+    const shot = this.computerMove(p);
+    if (!shot) { this.say(`${p.name} setzt diese Runde aus.`); this.finishMove(); return; }
+    this.selected = shot.cannon.id;
+    shot.cannon.aim = { angle: Math.round(shot.angle), powder: shot.powder };
+    this.launch(shot.cannon, shot.powder, shot.vx, shot.vy);
+  }
+
+  /** Original comp(): buy what is missing, pick a target by strategy, compute the shot. */
+  computerMove(p) {
+    const n = p.idx, f = this.dir(n), foe = this.players[1 - n];
+    p.tax = 16;
+    if (p.powder < 20 && p.money >= this.prices.powder) this.buy('powder');
+    if (!p.balls && p.money >= this.prices.balls) this.buy('balls');
+    if (!this.objectsOf(n, 'cannon').length && p.money >= this.prices.cannon && this.freeCannonSlot(p)) this.buy('cannon');
+    if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
+
+    const cannons = this.objectsOf(n, 'cannon');
+    if (!cannons.length || p.powder < 20 || !p.balls) return null;
+    const cannon = cannons[rnd(cannons.length)];
+
+    // Default target: a random spot on the enemy castle (original: zx = 639*!n - f*(rand()%bh[0])).
+    let zx = foe.idx === 0 ? rnd(foe.width) : 639 - rnd(foe.width);
+    let zy = this.baseY[foe.idx];
+    const centre = (o) => [o.x + o.w / 2, o.y + o.h];
+    const pick = (list) => list[rnd(list.length)];
+    const target = {
+      king: () => { const k = this.objectsOf(foe.idx, 'king')[0]; if (k) [zx, zy] = [k.x + k.w / 2, k.y + k.h - 5]; },
+      cannons: () => { const l = this.objectsOf(foe.idx, 'cannon'); if (l.length) [zx, zy] = centre(pick(l)); },
+      mines: () => { const l = this.objectsOf(foe.idx, 'mine'); if (l.length) { [zx, zy] = centre(l[0]); zy -= 10; } },
+      gold: () => { const l = this.objectsOf(foe.idx, 'gold'); if (foe.money > 100 && l.length) [zx, zy] = centre(l[0]); },
+      stores: () => {
+        if (!(foe.balls || foe.powder > 19)) return;
+        const l = this.objectsOf(foe.idx, rnd(2) ? 'balls' : 'powder');
+        if (l.length) [zx, zy] = centre(l[0]);
+      },
+    };
+    const t0 = rnd(100);
+    if (p.strategy) target.king();
+    switch (p.strategy) {
+      case 1: if (t0 < 30) target.gold(); if (t0 > 60) target.stores(); break;
+      case 2: target.cannons(); if (t0 < 90) target.gold(); break;
+      case 3:
+        if (t0 < 50) target.cannons(); else if (t0 < 70) target.gold(); else if (t0 < 90) target.stores();
+        if (!rnd(3)) target.mines();
+        break;
+      case 4: target.cannons(); break;
+      case 5: target.cannons(); if (t0 < 90) target.mines(); break;
+      default: break;
+    }
+
+    // Original: the strength decides how far the computer misses (cx in 0..3).
+    const m = this.muzzle(cannon);
+    const y = m.y - zy; // original: y = ka.y - 10 - zy
+    const spread = 49 - (p.strength - 1) * 16;
+    let x = Math.abs(m.x - zx - spread / 2 + rnd(spread));
+    const wd = n ? -this.wind : this.wind;
+    let vx = 0.5, vy = 0, x2 = -1;
+    while (vx < 7 && (x2 < x || vy / 3.5 > vx)) {
+      vx += 0.4;
+      let t = 0, vx2 = vx;
+      x2 = 0;
+      while (vx2 > 0 && x2 < x) {
+        x2 += vx2;
+        vx2 += (wd / 2 - vx2) / 5000;
+        t++;
+      }
+      vy = y / t + 0.5 * G * t;
+    }
+    const angle = Math.atan2(vy, vx) * 57.296;
+    const powder = clamp(Math.trunc((4 * vx) / Math.cos(angle / 57.296) - 1.6), 0, 99);
+    return { cannon, angle, powder, vx: vx * f, vy };
+  }
+
+  /* ======================= settings changed during a game ======================= */
+
+  /** Original: the "Modus" menu switches who plays each side, even in a running game. */
+  setControl(types) {
+    types.forEach((t, i) => (this.players[i].type = t));
+    if (this.phase === 'aim' && this.cur.type === 'ai') {
+      this.building = null;
+      this.phase = 'ai';
+      this.aiTimer = 0.6;
+    } else if (this.phase === 'ai' && this.cur.type === 'human') {
+      this.phase = 'aim';
+      this.aiTimer = 0;
+    }
+    this.emit();
+  }
+
+  setComputers(sides) {
+    sides.forEach((s, i) => {
+      this.players[i].strategy = s.strategy;
+      this.players[i].strength = s.strength;
+    });
+    this.emit();
+  }
+
+  setOptions(o) {
+    this.options = { ...this.options, ...o, extensions: { ...this.options.extensions, ...(o.extensions || {}) } };
+    this.emit();
+  }
+
+  /* ======================= per-frame update ======================= */
 
   update(dt) {
     dt = Math.min(dt, 0.05);
-    for (const p of this.particles) {
-      p.vy += 220 * dt;
-      p.x += p.vx * dt;
-      p.y += p.vy * dt;
-      p.life -= dt;
-      if (this.isSolid(p.x, p.y) && p.vy > 0) { p.vy *= -0.3; p.vx *= 0.5; }
+    for (const pt of this.particles) {
+      pt.vy += 220 * dt;
+      pt.x += pt.vx * dt;
+      pt.y += pt.vy * dt;
+      pt.life -= dt;
+      if (this.isSolid(pt.x, pt.y) && pt.vy > 0) { pt.vy *= -0.3; pt.vx *= 0.5; }
     }
-    this.particles = this.particles.filter((p) => p.life > 0 && p.y < H + 4);
-    for (const f of this.flashes) f.t += dt;
-    this.flashes = this.flashes.filter((f) => f.t < f.life);
+    this.particles = this.particles.filter((pt) => pt.life > 0 && pt.y < H + 4);
+    for (const fl of this.flashes) fl.t += dt;
+    this.flashes = this.flashes.filter((fl) => fl.t < fl.life);
     this.shake = this.shake > 0.1 ? this.shake * Math.pow(0.02, dt) : 0;
 
     let busy = false;
@@ -431,261 +813,36 @@ export class Game {
         if (this.supported(o)) {
           const dist = o.y - o.fall.startY;
           o.fall = null;
-          if (dist > 20) this.destroy(o, undefined, 'fall');
+          if (dist > 20 && !CHAMBERS.includes(o.type)) this.destroy(o, undefined, 'fall');
           break;
         }
         o.y += 1;
-        if (o.y > H) { this.destroy(o, undefined, 'fall'); break; }
+        if (o.y > H) { o.alive = false; o.fall = null; break; }
       }
     }
-
-    for (const b of this.blasts) b.delay -= dt;
-    const due = this.blasts.filter((b) => b.delay <= 0);
-    this.blasts = this.blasts.filter((b) => b.delay > 0);
-    due.forEach((b) => this.explode(b.x, b.y, b.power, b.by));
-    if (this.blasts.length) busy = true;
 
     if (this.projectile) {
       busy = true;
-      this.accum += dt * TIME_SCALE;
-      while (this.accum >= SUBSTEP && this.projectile) {
-        this.accum -= SUBSTEP;
+      this.stepAcc += dt * STEPS_PER_SECOND;
+      let n = 0;
+      while (this.stepAcc >= 1 && this.projectile && n++ < 40) {
+        this.stepAcc -= 1;
         this.stepProjectile();
       }
-    } else this.accum = 0;
+    } else this.stepAcc = 0;
 
-    if (this.phase === 'flying' && !busy) {
+    if (this.phase === 'flying' && !busy && this.flashes.length === 0) {
       this.phase = this.returnPhase;
-      this.afterShot();
+      this.turnEnding = 0.6;
+    }
+    if (this.turnEnding > 0 && (this.phase === 'aim' || this.phase === 'ai')) {
+      this.turnEnding -= dt;
+      if (this.turnEnding <= 0) { this.turnEnding = 0; this.finishMove(); }
+      return;
     }
     if (this.phase === 'ai') {
       this.aiTimer -= dt;
-      if (this.aiTimer <= 0) this.aiAct();
+      if (this.aiTimer <= 0) { this.aiTimer = 1e9; this.aiAct(); }
     }
-    if (this.autoEnd > 0 && this.phase === 'aim') {
-      this.autoEnd -= dt;
-      if (this.autoEnd <= 0) { this.autoEnd = 0; this.endTurn(); }
-    }
-  }
-
-  afterShot() {
-    if (this.phase === 'over') return;
-    // One shot per turn: once the dust settles the turn passes to the opponent.
-    if (this.phase === 'ai') { this.aiStep = 'done'; this.aiTimer = 0.9; }
-    else this.autoEnd = 1.0;
-    this.emit();
-  }
-
-  /* ---------- economy & building ---------- */
-
-  setTax(v) {
-    this.cur.tax = clamp(Math.round(v), 0, 60);
-    this.emit();
-  }
-
-  buy(key) {
-    if (this.phase !== 'aim' && this.phase !== 'ai') return false;
-    const p = this.cur;
-    const price = this.prices[key];
-    if (p.money < price) { if (p.type === 'human') sound.error(); return false; }
-    p.money -= price;
-    if (key === 'powder') p.powder += 30;
-    else if (key === 'balls') p.balls += 2;
-    else if (key === 'stones') { p.stones += 20; if (p.type === 'human') this.placing = 'stones'; }
-    else if (PLACEABLE.includes(key)) { p.owed[key]++; if (p.type === 'human') this.placing = key; }
-    if (p.type === 'human') sound.coin();
-    this.emit();
-    return true;
-  }
-
-  startPlacing(key) {
-    const p = this.cur;
-    if (this.phase !== 'aim') return;
-    if (key === 'stones' ? p.stones > 0 : p.owed[key] > 0) this.placing = key;
-    this.emit();
-  }
-
-  cancelPlacing() {
-    this.placing = null;
-    this.emit();
-  }
-
-  /** Where an item would land if dropped at (lx, ly), or null if not allowed there. */
-  placementSpot(key, lx, ly, side = this.current) {
-    const [h0, h1] = HOME[side];
-    if (key === 'stones') {
-      const x = Math.floor(lx / CELL) * CELL, y = Math.floor(ly / CELL) * CELL;
-      if (x < h0 || x + CELL > h1 || y < 0 || y + CELL > H) return null;
-      if (!this.rectFree(x, y, CELL, CELL)) return null;
-      const touches =
-        this.isSolid(x + 1, y + CELL) || this.isSolid(x - 1, y + 1) || this.isSolid(x + CELL, y + 1) || this.isSolid(x + 1, y - 1);
-      return touches ? { x, y, w: CELL, h: CELL } : null;
-    }
-    const [w, h] = SIZES[key];
-    const x = Math.round(lx - w / 2);
-    if (x < h0 || x + w > h1) return null;
-    let y = Math.max(0, Math.round(ly));
-    const cx = x + (w >> 1);
-    while (y < H && !this.isSolid(cx, y)) y++;
-    if (y >= H) return null;
-    const top = y - h;
-    if (top < 0 || !this.rectFree(x, top, w, h, 1)) return null;
-    const spot = { x, y: top, w, h };
-    return this.supported(spot) ? spot : null;
-  }
-
-  place(lx, ly) {
-    const key = this.placing;
-    if (!key || this.phase !== 'aim') return false;
-    const p = this.cur;
-    const spot = this.placementSpot(key, lx, ly);
-    if (!spot) { sound.error(); return false; }
-    if (key === 'stones') {
-      this.fillBrick(spot.x, spot.y, BRICK + this.current);
-      p.stones--;
-      if (p.stones <= 0) this.placing = null;
-    } else {
-      this.addObject(key, this.current, spot.x, spot.y);
-      p.owed[key]--;
-      this.placing = p.owed[key] > 0 ? key : null;
-      if (key === 'cannon') this.selected = this.objects[this.objects.length - 1].id;
-      this.say(`${p.name} stellt ${key === 'cannon' ? 'eine neue Kanone' : key === 'vane' ? 'eine Windfahne' : 'einen Förderturm'} auf.`);
-    }
-    sound.click();
-    this.emit();
-    return true;
-  }
-
-  /* ---------- computer players ---------- */
-
-  aiAct() {
-    const p = this.cur;
-    if (this.aiStep === 'shop') {
-      this.aiShop(p);
-      this.aiStep = 'fire';
-      this.aiTimer = 0.6;
-      this.emit();
-      return;
-    }
-    if (this.aiStep === 'fire') {
-      const cannons = this.objectsOf(this.current, 'cannon').filter((k) => this.canFire(k));
-      let pick = null;
-      for (const c of cannons) {
-        const shot = this.aiAim(p, c);
-        if (shot && (!pick || shot.score < pick.shot.score)) pick = { c, shot };
-      }
-      if (!pick) { this.aiStep = 'done'; this.aiTimer = 0.8; return; }
-      this.selected = pick.c.id;
-      pick.c.aim = { angle: pick.shot.angle, powder: pick.shot.powder };
-      this.fire(pick.c.id, pick.shot.angle, pick.shot.powder);
-      return;
-    }
-    if (this.aiStep === 'done') this.endTurn();
-  }
-
-  aiShop(p) {
-    const tryBuy = (k) => this.buy(k);
-    while (p.balls < 4 && p.money >= this.prices.balls) tryBuy('balls');
-    while (p.powder < 60 && p.money >= this.prices.powder + (p.balls > 0 ? 0 : this.prices.balls)) tryBuy('powder');
-    const cannons = this.objectsOf(p.idx, 'cannon').length;
-    if (cannons < 2 && p.money >= this.prices.cannon) this.aiBuild('cannon', p);
-    if (p.level >= 2 && !this.hasVane(p.idx) && p.money >= this.prices.vane + 150) this.aiBuild('vane', p);
-    if (this.objectsOf(p.idx, 'mine').length < 2 && p.money >= this.prices.mine + 250) this.aiBuild('mine', p);
-    if (p.money >= this.prices.stones + 120) this.aiRepair(p);
-    p.tax = p.pop < 120 ? 10 : p.money < 150 ? 28 : 20;
-  }
-
-  aiBuild(key, p) {
-    const [h0, h1] = HOME[p.idx];
-    let best = null;
-    for (let x = h0 + 8; x < h1 - 8; x += 2) {
-      const s = this.placementSpot(key, x, 0, p.idx);
-      if (!s) continue;
-      const front = p.idx === 0 ? s.x : W - s.x;
-      const score = key === 'cannon' ? s.y * 2 - front * 0.1 : front;
-      if (!best || score < best.score) best = { ...s, score };
-    }
-    if (!best) return;
-    if (!this.buy(key)) return;
-    this.addObject(key, p.idx, best.x, best.y);
-    p.owed[key]--;
-    this.say(`${p.name} baut ${key === 'cannon' ? 'eine Kanone' : key === 'vane' ? 'eine Windfahne' : 'einen Förderturm'}.`);
-  }
-
-  aiRepair(p) {
-    const missing = p.originalBricks
-      .filter(([x, y]) => !this.isSolid(x + 1, y + 1) && this.rectFree(x, y, CELL, CELL))
-      .sort((a, b) => b[1] - a[1]);
-    if (missing.length < 10) return;
-    if (!this.buy('stones')) return;
-    let n = 0;
-    for (const [x, y] of missing) {
-      if (n >= 20) break;
-      if (!this.isSolid(x + 1, y + CELL) && !this.isSolid(x - 1, y + 1) && !this.isSolid(x + CELL, y + 1)) continue;
-      this.fillBrick(x, y, BRICK + p.idx);
-      n++;
-    }
-    p.stones = 0;
-    if (n) this.say(`${p.name} bessert ${n} Steine an der Burg aus.`);
-  }
-
-  simulateShot(c, angle, powder, wind) {
-    const m = this.muzzle(c, angle);
-    const v = powder * SPEED_PER_POWDER;
-    let x = m.x, y = m.y, vx = m.dir * Math.cos(m.a) * v, vy = -Math.sin(m.a) * v;
-    const ax = wind * WIND_ACC;
-    for (let i = 0; i < 120 * 20; i++) {
-      vx += ax * SUBSTEP;
-      vy += GRAVITY * SUBSTEP;
-      x += vx * SUBSTEP;
-      y += vy * SUBSTEP;
-      if (x < 0 || x >= W) return null;
-      const hit = this.hitTest(x, y, c.id);
-      if (hit) return { x, y, obj: hit.obj || null };
-    }
-    return null;
-  }
-
-  aiAim(p, c) {
-    const enemy = 1 - p.idx;
-    const targets = this.objectsOf(enemy);
-    const king = targets.find((o) => o.type === 'king');
-    if (!king) return null;
-    let target = king;
-    if (Math.random() < 0.35) {
-      const others = targets.filter((o) => ['cannon', 'powder', 'gold'].includes(o.type));
-      if (others.length) target = others[randInt(0, others.length - 1)];
-    }
-    const tx = target.x + target.w / 2, ty = target.y + target.h / 2;
-    const wind = this.hasVane(p.idx) ? this.wind : this.wind * rand(0.2, 0.8);
-    const [h0, h1] = HOME[p.idx];
-    const maxP = Math.min(MAX_POWDER, p.powder);
-    const score = (ang, pw) => {
-      const r = this.simulateShot(c, ang, pw, wind);
-      if (!r) return 1e9;
-      let d = Math.hypot(r.x - tx, r.y - ty);
-      if (r.obj && r.obj.owner === enemy) d *= 0.5;
-      if (r.obj && r.obj.owner === p.idx) d += 2000;
-      if (r.x >= h0 && r.x < h1) d += 1500;
-      return d;
-    };
-    let best = { s: 1e9, a: 45, p: Math.min(DEFAULT_POWDER, maxP) };
-    for (let a = 12; a <= 84; a += 2)
-      for (let pw = 4; pw <= maxP; pw++) {
-        const s = score(a, pw);
-        if (s < best.s) best = { s, a, p: pw };
-      }
-    for (let a = best.a - 2; a <= best.a + 2; a += 0.5)
-      for (let pw = Math.max(1, best.p - 1); pw <= Math.min(maxP, best.p + 1); pw++) {
-        const s = score(a, pw);
-        if (s < best.s) best = { s, a, p: pw };
-      }
-    // Aim gets sharper as the duel goes on, so early rounds are not decided by a lucky first volley.
-    const warmup = Math.max(0, 3 - this.round) * 2.5;
-    const noise = ([0, 7, 4.5, 2.2, 0.8][p.level] ?? 3) + warmup;
-    const angle = clamp(Math.round(best.a + rand(-noise, noise)), 5, 88);
-    let powder = best.p;
-    if (Math.random() < 0.45 - p.level * 0.1) powder = clamp(powder + randInt(-1, 1), 1, maxP);
-    return { angle, powder, score: best.s };
   }
 }
