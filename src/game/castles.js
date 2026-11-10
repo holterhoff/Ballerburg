@@ -30,7 +30,16 @@ function design(width, build) {
       for (let x = x0; x + 4 <= x1; x += step) if (!gaps.some(([a, b]) => x + 4 > a && x < b)) parts.push({ op: 'rect', m: 0, r: [x, y, x + 4, y + 6] });
     },
   };
-  return { width, parts, ...build(api) };
+  const c = { width, parts, ...build(api) };
+  if (!c.throne && c.king) {
+    // Original: every throne room is 30x25 (drin(bg[21], bg[22], 30, 25)). Our castles get the
+    // same hall, centred on the king and standing on his floor.
+    const [kx, ky] = c.king;
+    const tx = Math.round(kx + SIZES.king[0] / 2 - 15);
+    c.throne = [tx, ky, 30, 25];
+    parts.push({ op: 'clear', r: [tx, ky, tx + 30, ky + 25] });
+  }
+  return c;
 }
 
 /** Gabled roof over x0..x1 resting on y, ridge h pixels higher. */
@@ -899,8 +908,7 @@ export function buildCastle(key, side, groundY) {
   // Original: drin(bg[21], bg[22], 30, 25) – a hit anywhere in the 30×25 throne room hits the king.
   // Burgfehde's own castles get the same room, centred on the king and standing on his floor.
   const king = objects.find((o) => o.type === 'king');
-  const [kx, ky] = c.king, [kw] = SIZES.king;
-  const [tx, ty, tw, th] = c.throne || [kx + kw / 2 - 15, ky, 30, 25];
+  const [tx, ty, tw, th] = c.throne;
   king.hit = { x: wx(tx, tw), y: groundY - ty - th, w: tw, h: th };
   const cannonSlots = slots.map(({ x, y }) => ({ x, y }));
   const vane = objects.find((o) => o.type === 'vane');

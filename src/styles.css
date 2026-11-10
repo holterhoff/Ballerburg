@@ -78,8 +78,7 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .info-wind { display: grid; grid-template-columns: auto auto 1fr; align-items: center; gap: 6px; padding: 2px 6px; border-bottom: 2px solid var(--ink); }
 .info-label { border: 1px solid var(--ink); padding: 0 4px; }
 .info-val { font-variant-numeric: tabular-nums; min-width: 3ch; }
-.wind-gauge { justify-self: center; position: relative; width: 44px; height: 30px; border-left: 1px solid var(--ink); }
-.wind-line { position: absolute; left: 50%; bottom: 0; width: 2px; height: 26px; background: var(--ink); transform-origin: bottom center; transition: transform 400ms ease; }
+.wind-gauge { justify-self: center; width: 56px; height: 46px; color: var(--ink); overflow: visible; }
 .info-done { width: calc(100% - 8px); margin: 4px; }
 
 .roundbox { position: absolute; left: 50%; bottom: 1%; transform: translateX(-50%); z-index: var(--z-hud); background: var(--paper); border: 2px solid var(--ink); padding: 0 12px; font-size: clamp(14px, 1.6vw, 20px); }

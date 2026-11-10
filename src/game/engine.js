@@ -13,7 +13,7 @@
  * Jede Methode nennt ihr Gegenstück im C-Original (baller1.c, baller2.c, market.c, cannoneer.c).
  * Abweichungen und Erweiterungen sind mit "Burgfehde:" gekennzeichnet.
  */
-import { GREETINGS, KRUSE_SAYINGS } from './kingtalk.js';
+import { GREETINGS, KRUSE_SAYINGS, ROASTS, PRAISE } from './kingtalk.js';
 import {
   W, H, CELL, G, STEPS_PER_SECOND, ANGLE_MAX, POWDER_MIN, POWDER_MAX, DEFAULT_AIM, SIZES, EARTH, BRICK,
 } from './constants.js';
@@ -278,7 +278,9 @@ export class Game {
       this.selected = null;
     } else {
       this.phase = 'aim';
-      this.selected = this.objectsOf(this.current, 'cannon')[0]?.id ?? null;
+      // the triangle marks the cannon this player fired last, or the first one
+      const cannons = this.objectsOf(this.current, 'cannon');
+      this.selected = (cannons.find((c) => c.id === this.cur.lastCannon) || cannons[0])?.id ?? null;
     }
     this.emit();
   }
@@ -408,6 +410,8 @@ export class Game {
     p.powder = Math.max(0, p.powder - cost);
     p.balls -= 1;
     p.shots++;
+    p.lastCannon = c.id;
+    if (p.type === 'human') this.selected = c.id;
     this.hasFired = true;
     const m = this.muzzle(c);
     this.projectile = { x: m.x, y: m.y, vx, vy, owner: c.owner, cannon: c.id, trail: [] };
@@ -522,6 +526,7 @@ export class Game {
     this.burst(o);
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     const own = by === o.owner ? ' (eigener Treffer)' : '';
+    if (by === o.owner) this.players[by].ownHits = (this.players[by].ownHits || 0) + 1;
     this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${cause === 'fall' ? 'stürzt ab' : 'zerstört'}${own}.`, 'hit');
   }
 
@@ -535,6 +540,7 @@ export class Game {
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     this.burst(o, 6);
     const own = by === o.owner ? ' (eigener Treffer)' : '';
+    if (by === o.owner) this.players[by].ownHits = (this.players[by].ownHits || 0) + 1;
     this.say(`Förderturm von ${this.players[o.owner].name} beschädigt, das Rad ist gebrochen${own}.`, 'hit');
   }
 
@@ -542,6 +548,7 @@ export class Game {
   hitChamber(o, by) {
     const owner = this.players[o.owner];
     const own = by === o.owner ? ' (eigener Treffer)' : '';
+    if (by === o.owner) this.players[by].ownHits = (this.players[by].ownHits || 0) + 1;
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     this.burst(o, 10);
     sound.explosion(o.type === 'powder' ? 160 : 60);
@@ -854,7 +861,9 @@ export class Game {
       let text = s[rnd(s.length)];
       const tip = this.move >= 4 && this.advice(p);
       if (tip && rnd(3)) text = tip.text; // Burgfehde: the king mostly tells you what to do now
-      if (this.move >= 2 && !rnd(4)) text = KRUSE_SAYINGS[rnd(KRUSE_SAYINGS.length)]; // Burgfehde: stories about Kruse
+      // Burgfehde: the king talks about Meister Kruse — and mocks you when things go badly
+      const talk = this.move >= 2 && this.kingTalk(p);
+      if (talk) text = talk;
       if (text === p.lastAudience) text = 'Wir haben Euch nichts Neues zu sagen.';
       p.lastAudience = text;
       result = { text };
@@ -863,6 +872,40 @@ export class Game {
     p.visits++;
     p.visitStreak++;
     return result;
+  }
+
+  /**
+   * Burgfehde: what the king says about Meister Kruse. When the game goes badly for you he mocks
+   * you (most of the time), when it goes well he is smug, otherwise he tells a Kruse story
+   * every other audience. Every saying comes once before any repeats.
+   */
+  kingTalk(p) {
+    const foe = this.players[1 - p.idx];
+    const ctx = {
+      p, foe,
+      cannons: this.objectsOf(p.idx, 'cannon').length,
+      foeCannons: this.objectsOf(foe.idx, 'cannon').length,
+      shots: p.shots, hits: p.hits, ownHits: p.ownHits || 0,
+      missRate: p.shots ? 1 - p.hits / p.shots : 0,
+      round: Math.floor(this.move / 2) + 1,
+    };
+    const pick = (key, lines) => {
+      p.heard = p.heard || {};
+      const used = (p.heard[key] = p.heard[key] || []);
+      let fresh = lines.filter((l) => !used.includes(l));
+      if (!fresh.length) { used.length = 0; fresh = lines; }
+      const line = fresh[rnd(fresh.length)];
+      used.push(line);
+      return line;
+    };
+    const bad = ROASTS.filter((r) => r.when(ctx));
+    if (bad.length && rnd(4)) {
+      const r = bad[rnd(bad.length)];
+      return pick('roast' + ROASTS.indexOf(r), r.lines(ctx));
+    }
+    const good = p.hits >= foe.hits + 2 && ctx.cannons >= ctx.foeCannons;
+    if (good && !rnd(2)) return pick('praise', PRAISE);
+    return rnd(2) ? pick('kruse', KRUSE_SAYINGS) : null;
   }
 
   /**

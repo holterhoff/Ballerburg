@@ -21,13 +21,51 @@ function playersFrom(sides) {
   }));
 }
 
-/** Small weather vane gauge like the original info box: the line leans with the wind. */
+/**
+ * The weather vane of the original info box (werdran()): a pole with a flag of 20 px. Without wind
+ * the flag hangs down, the stronger the wind the higher it flies (angle |wind|/15, at most 90°).
+ * The outer edge bends a little less than the flag (0.82), so the cloth sags. Burgfehde lets it
+ * flutter: the stronger the wind, the faster and wider the cloth waves.
+ */
 function WindGauge({ wind, known }) {
-  const lean = known ? Math.max(-60, Math.min(60, wind * 2)) : 0;
+  const [t, setT] = useState(0);
+  const strength = known ? Math.min(1, Math.abs(wind) / 23) : 0;
+  useEffect(() => {
+    if (!known) return undefined;
+    let id;
+    const start = performance.now();
+    const tick = (now) => { setT((now - start) / 1000); id = requestAnimationFrame(tick); };
+    id = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(id);
+  }, [known]);
+  const x = 30, top = 5, foot = 48;
+  let flag = null;
+  if (known) {
+    const c = wind > 0 ? 1 : -1;
+    const speed = 2 + 9 * strength; // flaps per second (in radians/2pi)
+    const wave = Math.sin(t * speed);
+    const wave2 = Math.sin(t * speed * 1.7 + 1.3);
+    // calm: the cloth sways slowly, storm: it snaps quickly with a wider swing
+    let wk = Math.min(1.57, (c * wind) / 15) + (0.04 + 0.1 * strength) * wave;
+    wk = Math.max(0, Math.min(1.57, wk));
+    let wl = wk * (0.82 - 0.08 * strength * wave2);
+    wl = Math.max(0, Math.min(1.57, wl));
+    const s1 = c * 20 * Math.sin(wk), c1 = 20 * Math.cos(wk);
+    const s2 = c * 20 * Math.sin(wl), c2 = 20 * Math.cos(wl);
+    // attachment: down the pole when the flag flies, across the top when it hangs limp
+    const limp = wk < 0.2;
+    const a = limp ? [x - 1, top] : [x + 1, top];
+    const b = limp ? [x + 2, top] : [x + 1, top + 6];
+    const e1 = [b[0] + s1, b[1] + c1];
+    const e2 = [a[0] + s1, a[1] + c1];
+    const mid = [(e1[0] + e2[0]) / 2 + s2 * (0.15 + 0.1 * strength * wave2), (e1[1] + e2[1]) / 2 + c2 * 0.15];
+    flag = [a, b, e1, mid, e2].map((p) => p.map((v) => v.toFixed(1)).join(',')).join(' ');
+  }
   return (
-    <span className="wind-gauge" aria-hidden="true">
-      <span className="wind-line" style={{ transform: `rotate(${lean}deg)` }} />
-    </span>
+    <svg className="wind-gauge" viewBox="0 0 60 50" aria-hidden="true">
+      <line x1={x} y1={foot} x2={x} y2={top} stroke="currentColor" strokeWidth="2" />
+      {flag && <polygon points={flag} fill="var(--paper)" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />}
+    </svg>
   );
 }
 

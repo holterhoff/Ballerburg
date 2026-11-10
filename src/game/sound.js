@@ -56,7 +56,7 @@ function noise(dur, { freq = 800, gain = 0.4, delay = 0 } = {}) {
 const pcmCache = new Map();
 function playPcm(key, triggers) {
   const a = ac();
-  if (!a) return;
+  if (!a) return null;
   let pcm = pcmCache.get(key);
   if (!pcm) pcmCache.set(key, (pcm = renderBaller(a.sampleRate, triggers)));
   const buf = a.createBuffer(1, pcm.length, a.sampleRate);
@@ -65,6 +65,15 @@ function playPcm(key, triggers) {
   src.buffer = buf;
   src.connect(a.destination);
   src.start();
+  return src;
+}
+
+/** Channel A after the shot: it roars until the next envelope restart (impact) or the end of the flight. */
+let roar = null;
+function stopRoar() {
+  if (!roar) return;
+  try { roar.stop(); } catch { /* already stopped */ }
+  roar = null;
 }
 
 /** Channel B of the chip: a square wave whose pitch follows the ball. */
@@ -121,11 +130,12 @@ export const sound = {
   },
   setMuted(m) {
     muted = m;
-    if (m) { this.stopMusic(); stopWhistle(); }
+    if (m) { this.stopMusic(); stopWhistle(); stopRoar(); }
   },
-  /** Original: a short click from the chip, then the ball whistles until it lands. */
+  /** Original: channel A roars and channel B whistles until the ball lands. */
   shot() {
-    playPcm('shot', SHOT);
+    stopRoar();
+    roar = playPcm('shot', SHOT);
     startWhistle();
   },
   /** Called every flight step with the ball's height (screen y, 0 = top). */
@@ -136,10 +146,12 @@ export const sound = {
   },
   flightEnd() {
     stopWhistle();
+    stopRoar();
   },
   /** Original: the ball digs into the ground or a wall. */
   impact() {
     stopWhistle();
+    stopRoar();
     playPcm('impact', IMPACT);
   },
   /** Original: expls() with d frames (cannon 50, tower 120, store room 60/160, throne 240). */
