@@ -25,8 +25,8 @@ import { sound } from './sound.js';
 const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
 import { recordResult } from './scores.js';
 
-/** Burgfehde: one purchase lets you paint this many 4×4 stones (the original gave 20). */
-export const BUILD_STONES = 40;
+/** Original: anbau() lets you lay 20 bricks per purchase. */
+export const BUILD_STONES = 20;
 
 /* ---------- original constants (baller1.c: neues(), rechnen()) ---------- */
 
@@ -55,10 +55,10 @@ export const TIMES = ['morgen', 'tag', 'abend', 'nacht'];
 const MINE_NOTCH = 2;
 /** Original: bricks can only be laid below y = 155. */
 const BUILD_MIN_Y = 155;
-/** Burgfehde: bricks are 8×4 pixels like the masonry pattern, and may be laid up to 40 px in front of the castle. */
+/** Burgfehde: bricks are 8×4 pixels like the masonry pattern; like the original they may be laid up to 15 px in front of the castle. */
 const BRICK_W = 8;
 const BRICK_H = 4;
-const BUILD_MARGIN = 40;
+const BUILD_MARGIN = 15; // original: anbau() only within bg[0]+15
 /** Burgfehde: strongest wind (the original allowed about 30). */
 const WIND_MAX = 20;
 
@@ -676,10 +676,20 @@ export class Game {
 
   /** Original: fturm() places towers side by side in front of the castle, on the ground. */
   nextMineSpot(p = this.cur) {
-    const mines = this.objectsOf(p.idx, 'mine').length;
-    if (mines >= MAX_MINES) return null;
+    const mines = this.objectsOf(p.idx, 'mine');
+    if (mines.length >= MAX_MINES) return null;
+    // Original: the first free of the five tower places (ft[n][t].x == -1), so a shot-down tower
+    // can be rebuilt on its old place
+    for (let t = 0; t < MAX_MINES; t++) {
+      const s = this.mineSpotAt(p, t);
+      if (s) return s;
+    }
+    return null;
+  }
+
+  mineSpotAt(p, t) {
     const [w, h] = SIZES.mine;
-    const offset = p.width + 8 + mines * 22;
+    const offset = p.width + 8 + t * 22;
     if (offset + w > MINE_LIMIT_X) return null;
     const x = p.idx === 0 ? offset : W - offset - w;
     // Burgfehde: the tower stands on the lowest ground under its footprint and cuts a level

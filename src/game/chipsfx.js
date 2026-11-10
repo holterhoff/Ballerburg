@@ -20,9 +20,7 @@ const OUT = 0.18; // same output scale as the music
  */
 export function renderBaller(sampleRate, triggers) {
   const last = triggers[triggers.length - 1];
-  // shape 0: one decay. Period 0 (the shot) counts as the longest period, 65536: the counter only
-  // wraps after a full turn. So the shot roars on until the impact restarts the envelope.
-  const decay = (r) => (256 * (r * 256 || 65536)) / CLOCK;
+  const decay = (r) => (256 * Math.max(1, r * 256)) / CLOCK; // shape 0: one decay of 16 steps
   const length = Math.ceil((last.t + decay(last.r) + 0.02) * sampleRate);
   const out = new Float32Array(length);
   const toneStep = CLOCK / (16 * TONE_A) / sampleRate;
@@ -51,10 +49,7 @@ export function renderBaller(sampleRate, triggers) {
   return out;
 }
 
-/**
- * Original: baller(0) right before the ball leaves the barrel. With envelope period 0 channel A
- * rumbles (noise and a deep tone) at full volume for the whole flight; the impact cuts it off.
- */
+/** Original: baller(0) right before the ball leaves the barrel. */
 export const SHOT = [{ t: 0, r: 0 }];
 
 /** Original: the impact in schuss() calls baller(22 + c*3) for the four circles it digs. */
