@@ -20,6 +20,9 @@ import {
 import { CASTLES, buildCastle } from './castles.js';
 import { generateTerrain } from './terrain.js';
 import { sound } from './sound.js';
+
+/** Original: frames of expls() per hit object (the throne gets 40 + 200). No sound for the vane. */
+const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
 import { recordResult } from './scores.js';
 
 /** Burgfehde: one purchase lets you paint this many 4×4 stones (the original gave 20). */
@@ -425,6 +428,7 @@ export class Game {
     pr.vy -= G;
     pr.vx += (this.wind / 2 - pr.vx) / 5000;
     if ((pr.steps = (pr.steps || 0) + 1) % 2 === 0) pr.trail.push([pr.x, pr.y]);
+    sound.flight(pr.y);
 
     if (!(pr.x > 3 && pr.x < 637 && pr.y < 396)) {
       this.say('Die Kugel fliegt aus dem Feld.');
@@ -448,6 +452,7 @@ export class Game {
     const c = this.obj(pr.cannon);
     if (c) c.lastTrail = pr.trail.concat([[pr.x, pr.y]]);
     this.projectile = null;
+    sound.flightEnd();
   }
 
   /**
@@ -458,9 +463,9 @@ export class Game {
    */
   impact(x, y, vx, vy, by) {
     let xa = x, xb = x;
+    sound.impact();
     for (let c = 0; c < 4; c++) {
       this.carve(x, y, 5);
-      sound.boom(1);
       xa = Math.min(xa, x);
       xb = Math.max(xb, x);
       let stop = false;
@@ -504,6 +509,7 @@ export class Game {
   destroy(o, by, cause = 'hit') {
     if (!o.alive) return;
     const owner = this.players[o.owner];
+    if (cause === 'hit') sound.explosion(EXPLOSION_FRAMES[o.type] || 0);
     if (o.type === 'king') {
       o.alive = false;
       this.burst(o);
@@ -538,6 +544,7 @@ export class Game {
     const own = by === o.owner ? ' (eigener Treffer)' : '';
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     this.burst(o, 10);
+    sound.explosion(o.type === 'powder' ? 160 : 60);
     if (o.type === 'gold') {
       const loss = Math.min(200, owner.money);
       owner.money -= loss;

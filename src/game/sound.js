@@ -1,3 +1,5 @@
+import { renderBaller, SHOT, IMPACT, explosion, whistleFrequency, WHISTLE_GAIN } from './chipsfx.js';
+
 let ctx = null;
 let muted = false;
 
@@ -51,6 +53,44 @@ function noise(dur, { freq = 800, gain = 0.4, delay = 0 } = {}) {
   src.start(t);
 }
 
+const pcmCache = new Map();
+function playPcm(key, triggers) {
+  const a = ac();
+  if (!a) return;
+  let pcm = pcmCache.get(key);
+  if (!pcm) pcmCache.set(key, (pcm = renderBaller(a.sampleRate, triggers)));
+  const buf = a.createBuffer(1, pcm.length, a.sampleRate);
+  buf.copyToChannel(pcm, 0);
+  const src = a.createBufferSource();
+  src.buffer = buf;
+  src.connect(a.destination);
+  src.start();
+}
+
+/** Channel B of the chip: a square wave whose pitch follows the ball. */
+let whistle = null;
+function startWhistle() {
+  stopWhistle();
+  const a = ac();
+  if (!a) return;
+  const osc = a.createOscillator();
+  const g = a.createGain();
+  osc.type = 'square';
+  osc.frequency.value = whistleFrequency(200);
+  g.gain.value = WHISTLE_GAIN;
+  osc.connect(g).connect(a.destination);
+  osc.start();
+  whistle = { osc, ctx: a, last: Date.now() };
+  // safety net: a flight that ends without flightEnd() (new game, reload) must not whistle on
+  whistle.timer = setInterval(() => { if (whistle && Date.now() - whistle.last > 400) stopWhistle(); }, 200);
+}
+function stopWhistle() {
+  if (!whistle) return;
+  clearInterval(whistle.timer);
+  try { whistle.osc.stop(); } catch { /* already stopped */ }
+  whistle = null;
+}
+
 let music = null; // the playing original tune
 let musicPcm = null;
 
@@ -81,15 +121,30 @@ export const sound = {
   },
   setMuted(m) {
     muted = m;
-    if (m) this.stopMusic();
+    if (m) { this.stopMusic(); stopWhistle(); }
   },
+  /** Original: a short click from the chip, then the ball whistles until it lands. */
   shot() {
-    noise(0.3, { freq: 1200, gain: 0.35 });
-    tone(150, 0.25, { slide: 50, gain: 0.12 });
+    playPcm('shot', SHOT);
+    startWhistle();
   },
-  boom(power = 1) {
-    noise(0.5 + 0.3 * power, { freq: 380, gain: 0.5 * Math.min(1.5, power) });
-    tone(90, 0.4, { type: 'triangle', slide: 30, gain: 0.2 });
+  /** Called every flight step with the ball's height (screen y, 0 = top). */
+  flight(y) {
+    if (!whistle) return;
+    whistle.last = Date.now();
+    whistle.osc.frequency.setValueAtTime(whistleFrequency(y), whistle.ctx.currentTime);
+  },
+  flightEnd() {
+    stopWhistle();
+  },
+  /** Original: the ball digs into the ground or a wall. */
+  impact() {
+    stopWhistle();
+    playPcm('impact', IMPACT);
+  },
+  /** Original: expls() with d frames (cannon 50, tower 120, store room 60/160, throne 240). */
+  explosion(d = 50) {
+    if (d > 0) playPcm('expl' + d, explosion(d));
   },
   click() {
     tone(720, 0.04, { gain: 0.04 });
