@@ -768,7 +768,7 @@ function originalCastles(text) {
     k++;
     castles[`original${k}`] = {
       name: `Ballerburg ${ROMAN[k - 1]}`,
-      desc: `Originalburg ${k} aus BALLER.DAT von Eckhard Kruse, gezeichnet am 12.4.1987 für den Atari ST.`
+      desc: `Burg nach der Idee von Eckhard Kruse, dem Erfinder von Ballerburg (1987).`
         + (BALANCE[`original${k}`]?.startCannons ? ` Startet mit ${BALANCE[`original${k}`].startCannons} von ${cannons.length} Geschützen.` : ''),
       original: true,
       start: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40], ...BALANCE[`original${k}`]?.start },
@@ -818,7 +818,12 @@ function settleObjects(c) {
   c.vane = settle(c.vane, SIZES.vane);
 }
 
-Object.assign(CASTLES, originalCastles(BALLER_DAT));
+// the original castles come first in the list, then Burgfehde's own designs
+{
+  const own = { ...CASTLES };
+  for (const k of Object.keys(CASTLES)) delete CASTLES[k];
+  Object.assign(CASTLES, originalCastles(BALLER_DAT), own);
+}
 
 function insidePoly(pts, x, y) {
   let inside = false;

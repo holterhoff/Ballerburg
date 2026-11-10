@@ -10,8 +10,8 @@ import {
 } from './components/Dialogs.jsx';
 
 const DEFAULT_SIDES = [
-  { type: 'human', name: 'Spieler 1', strategy: 2, strength: 2, castle: 'falkenstein' },
-  { type: 'ai', name: 'Spieler 2', strategy: 2, strength: 2, castle: 'bollwerk' },
+  { type: 'human', name: 'Spieler 1', strategy: 2, strength: 2, castle: 'original1' },
+  { type: 'ai', name: 'Spieler 2', strategy: 2, strength: 2, castle: 'original2' },
 ];
 
 function playersFrom(sides) {

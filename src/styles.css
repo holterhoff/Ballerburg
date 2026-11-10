@@ -182,3 +182,5 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; }
 }
+
+.castle-select { font: inherit; font-weight: bold; padding: 2px 4px; border: 2px solid #000; background: #fff; max-width: 70%; }

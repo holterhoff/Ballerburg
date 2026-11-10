@@ -191,7 +191,9 @@ function CastlePicker({ side, value, onChange }) {
       <canvas ref={ref} className="castle-preview" role="img" aria-label={`Vorschau ${CASTLES[value].name}`} />
       <div className="picker-row">
         <button className="gem-arrow" type="button" onClick={() => onChange(keys[(i + keys.length - 1) % keys.length])} aria-label="vorherige Burg">◂</button>
-        <b>{CASTLES[value].name}</b>
+        <select className="castle-select" value={value} onChange={(e) => onChange(e.target.value)} aria-label="Burg wählen">
+          {keys.map((k) => <option key={k} value={k}>{CASTLES[k].name}</option>)}
+        </select>
         <button className="gem-arrow" type="button" onClick={() => onChange(keys[(i + 1) % keys.length])} aria-label="nächste Burg">▸</button>
       </div>
       <p className="gem-small">{CASTLES[value].desc}</p>
