@@ -95,6 +95,11 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .statusline .advice.warn { color: #8a4b00; }
 .statusline .advice.alarm { color: #8a1c10; font-weight: bold; }
 .statusline .msg.hit { color: #8a1c10; }
+.statusline .msg.warn { color: #a34a00; font-weight: bold; }
+.aim-heat { margin: 6px 0 0; font-size: 17px; }
+.aim-heat.h1 { color: #8a6a00; }
+.aim-heat.h2 { color: #a34a00; }
+.aim-heat.h3 { color: #fff; background: #b3200f; padding: 4px 8px; font-weight: bold; }
 .statusline .msg.big { font-weight: bold; }
 
 /* ---------- buttons and controls ---------- */

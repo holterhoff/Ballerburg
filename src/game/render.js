@@ -270,7 +270,10 @@ function drawKing(c, x, y, pal, t) {
   px(c, x + 10, y + 5, 1, 8);
 }
 
-function drawCannon(c, o, pal, angle, highlight) {
+/** Burgfehde extension "overheat": muzzle glow after 1, 2 and 3 shots in a row. */
+const HEAT_COLORS = [null, ['#ffd84a', 'rgba(255, 216, 74, 0.35)'], ['#ff8c1a', 'rgba(255, 140, 26, 0.4)'], ['#ff2a14', 'rgba(255, 42, 20, 0.45)']];
+
+function drawCannon(c, o, pal, angle, highlight, heat = 0, t = 0) {
   const dir = o.owner === 0 ? 1 : -1;
   const X = (dx) => (dir > 0 ? o.x + dx : o.x + o.w - 1 - dx);
   const x = o.x, y = o.y | 0;
@@ -289,6 +292,18 @@ function drawCannon(c, o, pal, angle, highlight) {
   for (let k = -1; k <= 1; k++) line(c, pxv, pyv + k, ex, ey + k);
   c.fillStyle = '#5b616b';
   line(c, pxv, pyv - 1, ex, ey - 1);
+  const glow = HEAT_COLORS[Math.min(heat, 3)];
+  if (glow) {
+    // the front half of the barrel glows; red pulses
+    const mx = pxv + dir * Math.cos(a) * 5, my = pyv - Math.sin(a) * 5;
+    const on = heat < 3 || Math.floor(t * 4) % 2 === 0;
+    c.fillStyle = glow[1];
+    px(c, (ex | 0) - 1, (ey | 0) - 2, 3, 5);
+    px(c, (ex | 0) - 2, (ey | 0) - 1, 5, 3);
+    c.fillStyle = on ? glow[0] : glow[1];
+    line(c, mx, my, ex, ey);
+    line(c, mx, my - 1, ex, ey - 1);
+  }
   if (highlight) {
     c.fillStyle = '#ffe9a8';
     const mx = x + o.w / 2;
@@ -509,12 +524,12 @@ function drawChamber(c, o, kind, amount, t) {
   }
 }
 
-export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = false, stock = null } = {}) {
+export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = false, stock = null, heat = 0 } = {}) {
   const pal = SIDE_COLORS[o.owner];
   const x = o.x | 0, y = o.y | 0;
   switch (o.type) {
     case 'king': return drawKing(c, x, y, pal, t);
-    case 'cannon': return drawCannon(c, o, pal, angle, highlight);
+    case 'cannon': return drawCannon(c, o, pal, angle, highlight, heat, t);
     case 'powder': return stock ? drawChamber(c, o, 'powder', stock.powder, t) : drawPowder(c, x, y);
     case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
     case 'gold': return stock ? drawChamber(c, o, 'gold', stock.money, t) : drawGold(c, x, y, t);
@@ -557,7 +572,8 @@ export function drawScene(c, game, r, view) {
     if (!o.alive) continue;
     const isSel = o.id === game.selected && (game.phase === 'aim' || game.phase === 'ai');
     const angle = isSel && view.aim ? view.aim.angle : o.aim.angle;
-    drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner] });
+    const heat = game.options.extensions.overheat ? o.heat || 0 : 0;
+    drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner], heat });
   }
   const tint = SKIES[skyKey]?.tint;
   if (tint) {

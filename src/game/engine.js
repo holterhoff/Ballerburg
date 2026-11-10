@@ -23,6 +23,8 @@ import { sound } from './sound.js';
 
 /** Original: frames of expls() per hit object (the throne gets 40 + 200). No sound for the vane. */
 const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
+/** Burgfehde extension "overheat": a cannon survives this many shots in a row, the next one blows it up. */
+export const HEAT_MAX = 3;
 import { recordResult } from './scores.js';
 
 /** Original: anbau() lets you lay 20 bricks per purchase. */
@@ -94,7 +96,7 @@ export const DEFAULT_OPTIONS = {
   /** Burgfehde: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Burgfehde extensions, all off by default so the game plays like the original. */
-  extensions: { landslides: false, falling: false },
+  extensions: { landslides: false, falling: false, overheat: false },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -271,6 +273,7 @@ export class Game {
     // original: wnd*9/10 + rand()%12-6; Burgfehde: smaller changes, never above WIND_MAX
     if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + rnd(9) - 4, -WIND_MAX, WIND_MAX);
     this.hasFired = false;
+    this.firedCannon = null;
     this.building = null;
     if (this.cur.type === 'ai') {
       this.phase = 'ai';
@@ -296,6 +299,9 @@ export class Game {
   finishMove() {
     const mover = this.cur;
     if (!mover.visitedThisTurn) mover.visitStreak = 0; // original: if (~kn&16) kn &= ~15
+    // Burgfehde extension: every cannon that did not fire in this move cools down completely
+    if (this.options.extensions.overheat)
+      for (const c of this.objectsOf(mover.idx, 'cannon')) if (c.id !== this.firedCannon) c.heat = 0;
     this.reckon(mover);
     if (this.phase === 'over') return;
     this.move++;
@@ -413,12 +419,34 @@ export class Game {
     p.lastCannon = c.id;
     if (p.type === 'human') this.selected = c.id;
     this.hasFired = true;
+    this.firedCannon = c.id;
+    if (this.options.extensions.overheat) {
+      // Burgfehde extension: the fourth shot in a row blows the cannon up instead of firing
+      if ((c.heat || 0) >= HEAT_MAX) return this.overheat(c);
+      c.heat = (c.heat || 0) + 1;
+      if (c.heat === HEAT_MAX) this.say('Das Rohr glüht rot! Noch ein Schuss, und das Geschütz fliegt in die Luft.', 'warn');
+    }
     const m = this.muzzle(c);
     this.projectile = { x: m.x, y: m.y, vx, vy, owner: c.owner, cannon: c.id, trail: [] };
     this.returnPhase = this.phase;
     this.phase = 'flying';
     this.building = null;
     sound.shot();
+    this.emit();
+    return true;
+  }
+
+  /**
+   * Burgfehde extension "overheat": the cannon fired HEAT_MAX times in a row and explodes.
+   * Powder and ball are lost, the move ends, the slot is free for a new cannon.
+   */
+  overheat(c) {
+    const p = this.cur;
+    p.overheats = (p.overheats || 0) + 1;
+    this.destroy(c, undefined, 'overheat');
+    this.returnPhase = this.phase;
+    this.phase = 'flying';
+    this.building = null;
     this.emit();
     return true;
   }
@@ -513,7 +541,7 @@ export class Game {
   destroy(o, by, cause = 'hit') {
     if (!o.alive) return;
     const owner = this.players[o.owner];
-    if (cause === 'hit') sound.explosion(EXPLOSION_FRAMES[o.type] || 0);
+    if (cause === 'hit' || cause === 'overheat') sound.explosion(EXPLOSION_FRAMES[o.type] || 0);
     if (o.type === 'king') {
       o.alive = false;
       this.burst(o);
@@ -527,7 +555,8 @@ export class Game {
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     const own = by === o.owner ? ' (eigener Treffer)' : '';
     if (by === o.owner) this.players[by].ownHits = (this.players[by].ownHits || 0) + 1;
-    this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${cause === 'fall' ? 'stürzt ab' : 'zerstört'}${own}.`, 'hit');
+    const what = cause === 'fall' ? 'stürzt ab' : cause === 'overheat' ? 'ist heißgelaufen und explodiert' : 'zerstört';
+    this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${what}${own}.`, 'hit');
   }
 
   /**
@@ -896,6 +925,8 @@ export class Game {
       cannons: this.objectsOf(p.idx, 'cannon').length,
       foeCannons: this.objectsOf(foe.idx, 'cannon').length,
       shots: p.shots, hits: p.hits, ownHits: p.ownHits || 0,
+      overheats: p.overheats || 0,
+      redHot: this.options.extensions.overheat ? this.objectsOf(p.idx, 'cannon').filter((c) => (c.heat || 0) >= HEAT_MAX).length : 0,
       missRate: p.shots ? 1 - p.hits / p.shots : 0,
       round: Math.floor(this.move / 2) + 1,
     };
@@ -984,7 +1015,8 @@ export class Game {
     if (!this.objectsOf(n, 'cannon').length && p.money >= this.prices.cannon && this.freeCannonSlot(p)) this.buy('cannon');
     if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
 
-    const cannons = this.objectsOf(n, 'cannon');
+    // Burgfehde extension: the computer never fires a red-hot cannon; with none left it sits out
+    const cannons = this.objectsOf(n, 'cannon').filter((c) => !this.options.extensions.overheat || (c.heat || 0) < HEAT_MAX);
     if (!cannons.length || p.powder < 20 || !p.balls) return null;
 
     // Default target: a random spot on the enemy castle (original: zx = 639*!n - f*(rand()%bh[0])).

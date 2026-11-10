@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Dialog, Btn, Spinner } from './Gem.jsx';
 import Cannon3D from './Cannon3D.jsx';
-import { MARKET, STRATEGIES } from '../game/engine.js';
+import { MARKET, STRATEGIES, HEAT_MAX } from '../game/engine.js';
 import { ANGLE_MAX, POWDER_MIN, POWDER_MAX, H } from '../game/constants.js';
 import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
 import { generateTerrain } from '../game/terrain.js';
@@ -17,6 +17,14 @@ export function Notice({ text, button = 'Abbruch', onClose }) {
   );
 }
 
+/** Burgfehde extension "overheat": what the aim dialog says after 1, 2 and 3 shots in a row. */
+const HEAT_TEXT = [
+  '',
+  'Das Rohr glüht gelb. Noch zwei Schüsse in Folge sind sicher.',
+  'Das Rohr glüht orange. Noch ein Schuss in Folge ist sicher.',
+  'Das Rohr glüht rot! Ein weiterer Schuss sprengt das Geschütz. Nehmt ein anderes oder lasst es eine Runde abkühlen.',
+];
+
 /** Original: sch_obj() in cannoneer.c — angle 0..180 in steps of 1 and 10, powder 5..20 in steps of 1 and 3. */
 export function AimDialog({ cannon, game, onFire, onCancel }) {
   const p = game.cur;
@@ -26,6 +34,8 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
   const ref = useRef(null);
   const dir = cannon.owner === 0 ? 1 : -1;
   const [no3d, setNo3d] = useState(false);
+  const heat = game.options.extensions.overheat ? Math.min(cannon.heat || 0, HEAT_MAX) : 0;
+  const hot = heat >= HEAT_MAX;
 
   // 2D fallback drawing, used only when WebGL is not available
   useEffect(() => {
@@ -83,6 +93,7 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
           <Spinner label="Winkel" value={angle} onChange={setAngle} min={0} max={ANGLE_MAX} coarse={10} unit="°" />
           <Spinner label="Pulver" value={powder} onChange={setPowder} min={POWDER_MIN} max={maxPowder} coarse={3} />
           <p className="gem-small">Über 90° schießt das Geschütz nach hinten. Vorrat: {p.powder} Pulver, {p.balls} Kugeln.</p>
+          {heat > 0 && <p className={`aim-heat h${heat}`} role={heat >= HEAT_MAX ? 'alert' : undefined}>{HEAT_TEXT[heat]}</p>}
         </div>
         {no3d ? (
           <canvas ref={ref} width={240} height={110} className="aim-preview" aria-label={`Geschütz bei ${angle} Grad`} role="img" />
@@ -91,8 +102,8 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
         )}
       </div>
       <div className="gem-actions">
-        <Btn onClick={onCancel}>Abbruch</Btn>
-        <Btn def data-autofocus onClick={() => onFire(angle, powder)}>Feuer</Btn>
+        <Btn def={hot} data-autofocus={hot || undefined} onClick={onCancel}>{hot ? 'Anderes Geschütz' : 'Abbruch'}</Btn>
+        <Btn def={!hot} data-autofocus={!hot || undefined} onClick={() => onFire(angle, powder)}>{hot ? 'Trotzdem feuern' : 'Feuer'}</Btn>
       </div>
     </Dialog>
   );
@@ -320,6 +331,7 @@ export function OptionsDialog({ options, onApply, onCancel }) {
         <legend>Erweiterungen (nicht im Original)</legend>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.landslides} onChange={(e) => ext('landslides', e.target.checked)} /> Unterhöhlte Hänge rutschen nach</label>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.falling} onChange={(e) => ext('falling', e.target.checked)} /> Burgteile ohne Halt stürzen ab</label>
+        <label className="gem-check-row"><input type="checkbox" checked={o.extensions.overheat} onChange={(e) => ext('overheat', e.target.checked)} /> Geschütze laufen heiß (der 4. Schuss in Folge sprengt das Geschütz)</label>
       </fieldset>
       <div className="gem-actions">
         <Btn onClick={onCancel}>Abbruch</Btn>
@@ -346,6 +358,12 @@ const RULES = [
     'Fördertürme bringen jede Runde zusätzliches Geld, bis zu fünf passen vor die Burg.',
     'Ohne Windfahne siehst du die Windstärke nicht. Der Wind ändert sich jeden Zug und lenkt die Kugeln ab.',
     'Treffer in Lagerkammern kosten bis zu 200 Gold, das ganze Pulver oder zwei Kugeln. Jeder Einschlag in einer Burg kann Einwohner kosten.',
+  ]],
+  ['Erweiterungen', [
+    'Burgfehde hat ein paar Regeln, die es im Original nicht gab. Sie sind alle aus und lassen sich unter Modus → Optionen einschalten.',
+    'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
+    'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
+    'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
   ]],
 ];
 

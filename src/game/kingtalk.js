@@ -61,6 +61,18 @@ export const KRUSE_SAYINGS = [
  */
 export const ROASTS = [
   {
+    // Burgfehde extension "overheat": a cannon blew up or glows red
+    when: (c) => c.overheats > 0 || c.redHot > 0,
+    lines: (c) => c.overheats > 0 ? [
+      `${c.overheats === 1 ? 'Ein Geschütz' : `${c.overheats} Geschütze`} heißgeschossen! Meister Kruse hat Euch mehrere Kanonen gegeben, nicht eine zum Grillen.`,
+      'Unser Kanonier sucht noch seine Augenbrauen. Meister Kruse hätte Euch das Feuern verboten.',
+      'Ein Geschütz, das man vier Mal hintereinander abfeuert, explodiert. Das weiß jedes Kind. Meister Kruse wusste es 1987, und Ihr wisst es jetzt auch.',
+    ] : [
+      'Das Rohr glüht rot! Meister Kruse hat Euch nicht nur eine Kanone gegeben. Benutzt auch die anderen!',
+      'Riecht Ihr das? Das ist Euer Geschütz. Noch ein Schuss, und Meister Kruse muss es neu zeichnen.',
+    ],
+  },
+  {
     // shoots a lot, hits little
     when: (c) => c.shots >= 4 && c.missRate >= 0.75,
     lines: (c) => [
