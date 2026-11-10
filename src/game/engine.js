@@ -22,11 +22,14 @@ import { generateTerrain } from './terrain.js';
 import { sound } from './sound.js';
 import { recordResult } from './scores.js';
 
+/** Burgfehde: one purchase lets you paint this many 4×4 stones (the original gave 20). */
+export const BUILD_STONES = 40;
+
 /* ---------- original constants (baller1.c: neues(), rechnen()) ---------- */
 
 /** Market items in the order of the original price array p[0..5]. */
 export const MARKET = [
-  { key: 'stones', label: 'Anbauen (20 Steine)' },
+  { key: 'stones', label: `Anbauen (${BUILD_STONES} Steine)` },
   { key: 'mine', label: 'Förderturm' },
   { key: 'cannon', label: 'Geschütz' },
   { key: 'vane', label: 'Windfahne' },
@@ -85,8 +88,8 @@ export const DEFAULT_OPTIONS = {
   autoCapitulate: true,
   /** Original: an_erl, laying bricks is allowed. */
   allowBuilding: true,
-  /** Burgfehde test mode: laying bricks costs nothing. Set to false for the original price. */
-  freeBuilding: true,
+  /** Burgfehde test mode: laying bricks costs nothing. Set to true only for testing. */
+  freeBuilding: false,
   /** Burgfehde: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Burgfehde extensions, all off by default so the game plays like the original. */
@@ -144,7 +147,10 @@ export class Game {
       const built = buildCastle(pc.castle, i, this.baseY[i]);
       for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) this.solid[y * W + x] = m;
       for (const [x, y] of built.rooms) if (x >= 0 && x < W && y >= 0 && y < H) this.interior[y * W + x] = i + 1;
-      built.objects.forEach((o) => this.addObject(o.type, i, o.x, o.y, o.w, o.h));
+      built.objects.forEach((o) => {
+        const obj = this.addObject(o.type, i, o.x, o.y, o.w, o.h);
+        if (o.hit) obj.hit = o.hit; // throne room of an original castle
+      });
       return {
         idx: i, name: pc.name, type: pc.type, castle: pc.castle,
         strategy: pc.strategy ?? 2, strength: clamp(pc.strength ?? 2, 1, 4),
@@ -215,11 +221,25 @@ export class Game {
   }
 
   /** Original: loc() — is there anything drawn at this point (ground, wall or castle part)? */
-  loc(x, y, ignoreId) {
+  /** `flying`: the ball's view, which passes through empty store rooms like the original. */
+  loc(x, y, ignoreId, flying = false) {
     if (this.isSolid(x, y)) return true;
     for (const o of this.objects)
-      if (o.alive && o.id !== ignoreId && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h) return true;
+      if (o.alive && o.id !== ignoreId && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h && !(flying && this.storeAir(o, y))) return true;
     return false;
+  }
+
+  /**
+   * Original: a store room is drawn bottom up with as many sacks, kegs or balls as there are
+   * (drw_gpk); the rest is white space. A ball flies through that part and hits the stock or floor.
+   */
+  storeAir(o, y) {
+    if (!CHAMBERS.includes(o.type)) return false;
+    const p = this.players[o.owner];
+    const have = { gold: p.money, powder: p.powder, balls: p.balls }[o.type];
+    const cap = p.caps[{ gold: 'money', powder: 'powder', balls: 'balls' }[o.type]] || 1;
+    const filled = Math.ceil(o.h * Math.min(1, Math.max(0, have) / cap));
+    return y < o.y + o.h - filled;
   }
 
   rectFree(x, y, w, h, ignoreId) {
@@ -416,9 +436,9 @@ export class Game {
     let free = true;
     if (pr.x >= 3 && pr.x <= 637 && pr.y <= 397) {
       const x = pr.x | 0, y = pr.y | 0;
-      free = !this.loc(x, y, pr.cannon);
+      free = !this.loc(x, y, pr.cannon, true);
       for (let i = -1; i <= 1 && free; i++)
-        free = !this.loc(x - 2, y + i, pr.cannon) && !this.loc(x + 2, y + i, pr.cannon) && !this.loc(x + i, y + 2, pr.cannon);
+        free = !this.loc(x - 2, y + i, pr.cannon, true) && !this.loc(x + 2, y + i, pr.cannon, true) && !this.loc(x + i, y + 2, pr.cannon, true);
     }
     if (!free) {
       this.endFlight(pr);
@@ -454,7 +474,7 @@ export class Game {
           if (o.type === 'cannon' && this.near(o, x, y, 2)) this.destroy(o, by);
           else if (o.type === 'mine' && this.near(o, x, y, 2)) { this.hitMine(o, by); stop = true; }
           else if (o.type === 'vane' && this.near(o, x, y, 3)) this.destroy(o, by);
-          else if (o.type === 'king' && this.near(o, x, y, 3)) { this.destroy(o, by); stop = true; }
+          else if (o.type === 'king' && (o.hit ? x > o.hit.x && x < o.hit.x + o.hit.w && y > o.hit.y && y < o.hit.y + o.hit.h : this.near(o, x, y, 3))) { this.destroy(o, by); stop = true; }
           else if (CHAMBERS.includes(o.type) && this.near(o, x, y, 3)) { this.hitChamber(o, by); stop = true; }
         }
       }
@@ -727,7 +747,7 @@ export class Game {
     p.money -= this.priceOf(key);
     switch (key) {
       case 'stones':
-        this.building = { left: 20 }; // original: anbau() lets you lay 20 bricks
+        this.building = { left: BUILD_STONES }; // original: anbau() lets you lay 20 bricks
         break;
       case 'mine': {
         const s = this.nextMineSpot(p);
@@ -757,40 +777,56 @@ export class Game {
   }
 
   /**
-   * Where a brick lands when the player clicks at (lx, ly).
-   * Original anbau() wanted a 4×4 cell exactly next to ground or wall, which rarely fits beside
-   * sloped or damaged walls. Burgfehde: the brick (BRICK_W×BRICK_H, centred on the click) is pushed
-   * up out of anything solid, then falls down until it rests on ground, wall or another brick.
-   * It must stay on your own side (castle width + BUILD_MARGIN) and below y = BUILD_MIN_Y.
+   * Where a stone goes when the player paints at (lx, ly).
+   * Original anbau(): a 4×4 stone that touches ground or wall. Burgfehde paints like a brush:
+   * dragging lays a stone wherever there is room next to ground, wall or an earlier stone.
+   * A single click into the air lets the stone fall until it rests on something.
+   * Stones stay on your own side (castle width + BUILD_MARGIN) and below y = BUILD_MIN_Y.
    */
-  brickSpot(lx, ly, side = this.current) {
-    const w = BRICK_W, h = BRICK_H;
-    const x = Math.round(lx - w / 2);
-    let y = Math.round(ly - h / 2);
+  brickSpot(lx, ly, side = this.current, allowFall = true) {
+    const w = CELL, h = CELL;
     const width = this.players[side].width;
-    const inZone = side === 0 ? x >= 0 && x + w <= width + BUILD_MARGIN : x >= W - width - BUILD_MARGIN && x + w <= W;
-    if (!inZone) return null;
-    // clicked into a wall or roof: move up until the brick sits on top of it (at most 60 px)
-    let lift = 0;
-    while (!this.rectFree(x, y, w, h)) {
-      if (++lift > 60 || --y < 0) return null;
-    }
-    // fall until something is directly below
-    const restsOn = (yy) => { for (let i = x; i < x + w; i++) if (this.loc(i, yy + h)) return true; return false; };
+    const inZone = (x) => (side === 0 ? x >= 0 && x + w <= width + BUILD_MARGIN : x >= W - width - BUILD_MARGIN && x + w <= W);
+    const touches = (x, y) => {
+      for (let i = x; i < x + w; i++) if (this.isSolid(i, y - 1) || this.isSolid(i, y + h)) return true;
+      for (let j = y; j < y + h; j++) if (this.isSolid(x - 1, j) || this.isSolid(x + w, j)) return true;
+      return false;
+    };
+    const ok = (x, y) => inZone(x) && y >= BUILD_MIN_Y && this.rectFree(x, y, w, h);
+    // the stone sits under the mouse; if that spot overlaps a wall it slides up to 3 px into the gap
+    const x0 = Math.round(lx - w / 2), y0 = Math.round(ly - h / 2);
+    let best = null;
+    for (let d = 0; d <= 3 && !best; d++)
+      for (let dy = -d; dy <= d && !best; dy++)
+        for (let dx = -d; dx <= d; dx++) {
+          if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+          if (ok(x0 + dx, y0 + dy) && touches(x0 + dx, y0 + dy)) { best = { x: x0 + dx, y: y0 + dy, w, h }; break; }
+        }
+    if (best || !allowFall) return best;
+    // a single click into the air: the stone falls until it rests on something
+    if (!inZone(x0) || !this.rectFree(x0, y0, w, h)) return null;
+    let y = y0;
+    const restsOn = (yy) => { for (let i = x0; i < x0 + w; i++) if (this.loc(i, yy + h)) return true; return false; };
     while (y + h < H && !restsOn(y)) y++;
-    if (y < BUILD_MIN_Y) return null;
-    return { x, y, w, h };
+    return y >= BUILD_MIN_Y ? { x: x0, y, w, h } : null;
   }
 
-  layBrick(lx, ly) {
+  /** Lays one stone. `painting` is true while the mouse is dragged: then nothing falls and no error sounds. */
+  layBrick(lx, ly, painting = false) {
     if (!this.building || this.phase !== 'aim') return false;
-    const s = this.brickSpot(lx, ly);
-    if (!s) { sound.error(); return false; }
-    for (let j = 0; j < s.h; j += CELL) for (let i = 0; i < s.w; i += CELL) this.fillBrick(s.x + i, s.y + j, BRICK + this.current);
+    const s = this.brickSpot(lx, ly, this.current, !painting);
+    if (!s) { if (!painting) sound.error(); return false; }
+    this.fillBrick(s.x, s.y, BRICK + this.current);
     sound.click();
     if (--this.building.left <= 0) this.building = null;
     this.emit();
     return true;
+  }
+
+  /** Paints stones along the line from a to b, so a fast drag leaves no gaps. */
+  paintLine(a, b) {
+    const n = Math.max(1, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 2));
+    for (let i = 0; i <= n && this.building; i++) this.layBrick(a.x + ((b.x - a.x) * i) / n, a.y + ((b.y - a.y) * i) / n, true);
   }
 
   /** Original: a right click ends laying bricks; the rest of the 20 bricks is lost. */
@@ -913,7 +949,6 @@ export class Game {
 
     const cannons = this.objectsOf(n, 'cannon');
     if (!cannons.length || p.powder < 20 || !p.balls) return null;
-    const cannon = cannons[rnd(cannons.length)];
 
     // Default target: a random spot on the enemy castle (original: zx = 639*!n - f*(rand()%bh[0])).
     let zx = foe.idx === 0 ? rnd(foe.width) : 639 - rnd(foe.width);
@@ -946,26 +981,58 @@ export class Game {
     }
 
     // Original: the strength decides how far the computer misses (cx in 0..3).
-    const m = this.muzzle(cannon);
-    const y = m.y - zy; // original: y = ka.y - 10 - zy
     const spread = 49 - (p.strength - 1) * 16;
-    let x = Math.abs(m.x - zx - spread / 2 + rnd(spread));
+    const miss = rnd(spread) - spread / 2;
     const wd = n ? -this.wind : this.wind;
-    let vx = 0.5, vy = 0, x2 = -1;
-    while (vx < 7 && (x2 < x || vy / 3.5 > vx)) {
-      vx += 0.4;
-      let t = 0, vx2 = vx;
-      x2 = 0;
-      while (vx2 > 0 && x2 < x) {
-        x2 += vx2;
-        vx2 += (wd / 2 - vx2) / 5000;
-        t++;
+    const aimFrom = (cannon) => {
+      const m = this.muzzle(cannon);
+      const y = m.y - zy; // original: y = ka.y - 10 - zy
+      const x = Math.abs(m.x - zx + miss);
+      let vx = 0.5, vy = 0, x2 = -1;
+      while (vx < 7 && (x2 < x || vy / 3.5 > vx)) {
+        vx += 0.4;
+        let t = 0, vx2 = vx;
+        x2 = 0;
+        while (vx2 > 0 && x2 < x) {
+          x2 += vx2;
+          vx2 += (wd / 2 - vx2) / 5000;
+          t++;
+        }
+        vy = y / t + 0.5 * G * t;
       }
-      vy = y / t + 0.5 * G * t;
+      const angle = Math.atan2(vy, vx) * 57.296;
+      const powder = clamp(Math.trunc((4 * vx) / Math.cos(angle / 57.296) - 1.6), 0, 99);
+      return { cannon, angle, powder, vx: vx * f, vy };
+    };
+    // Burgfehde: the computer picks a cannon whose shot does not hit its own castle
+    // (in the original it often shot its own walls to pieces at the start).
+    const order = [...cannons].sort(() => Math.random() - 0.5);
+    for (const cannon of order) {
+      const shot = aimFrom(cannon);
+      if (this.shotClearsOwnCastle(cannon, shot.vx, shot.vy)) return shot;
     }
-    const angle = Math.atan2(vy, vx) * 57.296;
-    const powder = clamp(Math.trunc((4 * vx) / Math.cos(angle / 57.296) - 1.6), 0, 99);
-    return { cannon, angle, powder, vx: vx * f, vy };
+    return aimFrom(order[0]);
+  }
+
+  /** Burgfehde: does a shot with this start speed leave its own building zone without hitting anything? */
+  shotClearsOwnCastle(cannon, vx, vy) {
+    const n = cannon.owner, width = this.players[n].width + BUILD_MARGIN;
+    const m = this.muzzle(cannon);
+    let x = m.x, y = m.y;
+    for (let s = 0; s < 2000; s++) {
+      x += vx;
+      y -= vy;
+      vy -= G;
+      vx += (this.wind / 2 - vx) / 5000;
+      if (n === 0 ? x > width : x < W - width) return true;
+      if (x < 3 || x > 637 || y >= 396) return false;
+      if (y >= 3) { // same ball size as in stepProjectile()
+        const bx = x | 0, by = y | 0, hit = (i, j) => this.loc(i, j, cannon.id, true);
+        if (hit(bx, by)) return false;
+        for (let i = -1; i <= 1; i++) if (hit(bx - 2, by + i) || hit(bx + 2, by + i) || hit(bx + i, by + 2)) return false;
+      }
+    }
+    return false;
   }
 
   /* ======================= settings changed during a game ======================= */

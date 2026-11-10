@@ -2,7 +2,7 @@
  * Burgen von Burgfehde.
  * Der Datenaufbau folgt dem Prinzip von BALLER.DAT aus Ballerburg ((C) 1987 Eckhard Kruse, GNU GPL v3):
  * Breite, Kanonenplätze, Thron, Windfahne, Lagerkammern (deren Größe die Kapazität bestimmt) und Startwerte.
- * Die sechs Burgen „Ballerburg I“ bis „Ballerburg VI“ werden direkt aus der Original-BALLER.DAT gelesen
+ * Die sechs Original-Burgen werden direkt aus der Original-BALLER.DAT gelesen
  * (siehe ballerdat.js, mit Erlaubnis von Eckhard Kruse). Alle anderen Burgen sind eigene Entwürfe.
  *
  * Koordinaten: x zählt von der Außenkante der Burg (0) zum Berg hin, y vom Boden (0) nach oben.
@@ -125,7 +125,7 @@ export const CASTLES = {
   stufenburg: {
     name: 'Stufenburg',
     desc: 'Festung für den langen Krieg: fünf Geschütze auf Terrassen und dem Turm, riesige Pulverkammer, wenig Gold.',
-    start: { money: 300, powder: 240, balls: 12, pop: 420 },
+    start: { money: 540, powder: 240, balls: 12, pop: 500 },
     ...design(172, ({ wall, room, merlons }) => {
       wall(0, 0, 172, 12);
       wall(0, 12, 142, 24);
@@ -223,7 +223,7 @@ export const CASTLES = {
   kolossburg: {
     name: 'Kolossburg',
     desc: 'Das Maximum: acht Geschütze, zwei Türme, Palas mit Wehrgang, riesige Schatz-, Pulver- und Kugelkammern.',
-    start: { money: 210, powder: 100, balls: 8, pop: 165 },
+    start: { money: 140, powder: 80, balls: 6, pop: 130 },
     ...design(196, ({ wall, room, merlons }) => {
       wall(0, 0, 196, 14);
       wall(0, 14, 196, 44);
@@ -270,7 +270,7 @@ export const CASTLES = {
   speicherburg: {
     name: 'Speicherburg',
     desc: 'Ein riesiges Lagerhaus mit gewaltigen Kammern für Gold, Pulver und Kugeln, aber nur zwei Geschütze.',
-    start: { money: 460, powder: 120, balls: 10, pop: 205 },
+    start: { money: 540, powder: 130, balls: 10, pop: 230 },
     ...design(190, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 190, 12);
       wall(0, 12, 150, 58);
@@ -313,7 +313,7 @@ export const CASTLES = {
   abtei: {
     name: 'Abtei',
     desc: 'Kirchenschiff mit Glockenturm: viel Volk und eine volle Schatzkammer, nur zwei Geschütze.',
-    start: { money: 520, powder: 100, balls: 8, pop: 270 },
+    start: { money: 580, powder: 120, balls: 9, pop: 300 },
     ...design(170, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 170, 10);
       wall(0, 10, 110, 50);
@@ -381,7 +381,7 @@ export const CASTLES = {
   grenzfort: {
     name: 'Grenzfort',
     desc: 'Klein und wehrhaft: vier Geschütze, kleine Lager, wenig Volk.',
-    start: { money: 330, powder: 120, balls: 12, pop: 200 },
+    start: { money: 430, powder: 140, balls: 12, pop: 240 },
     ...design(120, ({ wall, room, merlons }) => {
       wall(0, 0, 120, 10);
       wall(0, 10, 120, 50);
@@ -403,7 +403,7 @@ export const CASTLES = {
   adlerhorst: {
     name: 'Adlerhorst',
     desc: 'Schlanker Turm, 120 Schritt hoch, ganz oben ein Geschütz und die Schatzkammer, zwei weitere auf dem Vorwerk.',
-    start: { money: 520, powder: 130, balls: 8, pop: 260 },
+    start: { money: 560, powder: 140, balls: 9, pop: 280 },
     ...design(100, ({ wall, room, merlons }) => {
       wall(0, 0, 100, 8);
       wall(30, 8, 62, 122);
@@ -426,7 +426,7 @@ export const CASTLES = {
   ringburg: {
     name: 'Ringburg',
     desc: 'Vier Türme und drei Mauerstücke, sieben Geschütze rundum, der König unter dem inneren Turm.',
-    start: { money: 350, powder: 120, balls: 12, pop: 240 },
+    start: { money: 250, powder: 100, balls: 9, pop: 190 },
     ...design(180, ({ wall, room, merlons }) => {
       wall(0, 0, 180, 12);
       wall(0, 12, 180, 38);
@@ -482,7 +482,7 @@ export const CASTLES = {
   turmstadt: {
     name: 'Turmstadt',
     desc: 'Drei Türme verschiedener Höhe auf einer Stadtmauer, fünf Geschütze, Kugellager im hohen Turm.',
-    start: { money: 340, powder: 120, balls: 11, pop: 215 },
+    start: { money: 300, powder: 110, balls: 10, pop: 200 },
     ...design(170, ({ wall, room, merlons }) => {
       wall(0, 0, 170, 10);
       wall(0, 10, 170, 34);
@@ -531,7 +531,7 @@ export const CASTLES = {
   wasserburg: {
     name: 'Wasserburg',
     desc: 'Lang und flach, zwei Ecktürme und ein Torhaus, sechs Geschütze und eine große Schatzkammer.',
-    start: { money: 360, powder: 120, balls: 10, pop: 260 },
+    start: { money: 290, powder: 110, balls: 9, pop: 220 },
     ...design(196, ({ wall, room, merlons }) => {
       wall(0, 0, 196, 12);
       wall(0, 12, 196, 40);
@@ -578,7 +578,7 @@ export const CASTLES = {
   schildmauer: {
     name: 'Schildmauer',
     desc: 'Eine dicke, hohe Mauer zum Berg hin schützt den König, dahinter das Wohnhaus mit Giebeldach.',
-    start: { money: 330, powder: 130, balls: 10, pop: 210 },
+    start: { money: 300, powder: 120, balls: 9, pop: 200 },
     ...design(184, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 184, 12);
       wall(0, 12, 184, 34);
@@ -646,7 +646,7 @@ export const CASTLES = {
   fuchsbau: {
     name: 'Fuchsbau',
     desc: 'Niedrig und geduckt hinter einem Erdhügel aus Stein, vier Geschütze auf zwei Ebenen.',
-    start: { money: 320, powder: 120, balls: 9, pop: 210 },
+    start: { money: 400, powder: 140, balls: 10, pop: 240 },
     ...design(172, ({ wall, room, merlons }) => {
       wall(0, 0, 172, 12);
       wall(0, 12, 172, 40);
@@ -733,20 +733,21 @@ function datNumbers(text) {
 
 /**
  * Burgfehde: Die Original-Burgen sind sehr unterschiedlich stark (im Computer-Turnier gewann Burg 2
- * 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen manche mit weniger Geschützen und Vorräten.
- * Die Umrisse bleiben unverändert, die übrigen Geschützplätze kann man später mit Geschützen besetzen.
+ * 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen die starken mit weniger Gold, Pulver,
+ * Kugeln und Volk. Umrisse und Geschütze bleiben wie im Original.
  * Die Originalwerte stehen weiter in BALLER.DAT.
  */
 const BALANCE = {
-  original1: { start: { money: 480, pop: 220 } },
-  original2: { startCannons: 2, start: { money: 200, powder: 100, balls: 6, pop: 180 } },
-  original3: { startCannons: 2 },
-  original4: { startCannons: 2, start: { money: 330, powder: 120, balls: 8, pop: 240 } },
-  original5: { start: { pop: 280 } },
-  original6: { startCannons: 2 },
+  original1: { start: { money: 520, pop: 240 } },
+  original2: { start: { money: 120, powder: 60, balls: 4, pop: 130 } },
+  original3: { start: { money: 280, powder: 90, balls: 7, pop: 190 } },
+  original4: { start: { money: 130, powder: 60, balls: 4, pop: 140 } },
+  original5: { start: { pop: 300 } },
+  original6: { start: { money: 320, powder: 90, balls: 6, pop: 200 } },
 };
 
-const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+/** Burgfehde gives the six original castles names; in the original they only had numbers. */
+const ORIGINAL_NAMES = ['Altenstein', 'Hohe Warte', 'Treppenfels', 'Königsfeste', 'Klausenburg', 'Mittelturm'];
 
 /** Turns BALLER.DAT into castles in Burgfehde's format. */
 function originalCastles(text) {
@@ -767,12 +768,10 @@ function originalCastles(text) {
     const gold = chamber(0), powder = chamber(1), balls = chamber(2);
     k++;
     castles[`original${k}`] = {
-      name: `Ballerburg ${ROMAN[k - 1]}`,
-      desc: `Burg nach der Idee von Eckhard Kruse, dem Erfinder von Ballerburg (1987).`
-        + (BALANCE[`original${k}`]?.startCannons ? ` Startet mit ${BALANCE[`original${k}`].startCannons} von ${cannons.length} Geschützen.` : ''),
+      name: `${ORIGINAL_NAMES[k - 1] ?? `Burg ${k}`} (Original)`,
+      desc: `Burg nach der Idee von Eckhard Kruse, dem Erfinder von Ballerburg (1987).`,
       original: true,
       start: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40], ...BALANCE[`original${k}`]?.start },
-      startCannons: BALANCE[`original${k}`]?.startCannons,
       ...design(bg[0], ({ body, room }) => {
         // draw(): the first four values are unused, then polygons; -2,a,b switches to the roof pattern
         let j = 4, mat = 'wall';
@@ -789,6 +788,8 @@ function originalCastles(text) {
         for (const [x, y, w, h] of [gold, powder, balls]) room(x, y, x + w, y + h);
         return {
           cannons,
+          // original drin(bg[21], bg[22], 30, 25): a hit anywhere in the throne room hits the king
+          throne: [kx, ky, 30, 25],
           king: [kx + 9, ky], vane: [vx - 2, vy],
           gold, powder, balls,
         };
@@ -895,6 +896,10 @@ export function buildCastle(key, side, groundY) {
     chamber('powder'),
     chamber('balls'),
   ];
+  if (c.throne) {
+    const [tx, ty, tw, th] = c.throne;
+    objects.find((o) => o.type === 'king').hit = { x: wx(tx, tw), y: groundY - ty - th, w: tw, h: th };
+  }
   const cannonSlots = slots.map(({ x, y }) => ({ x, y }));
   const vane = objects.find((o) => o.type === 'vane');
   const caps = { money: chamberCapacity('gold', c.gold), powder: chamberCapacity('powder', c.powder), balls: chamberCapacity('balls', c.balls) };

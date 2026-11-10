@@ -152,7 +152,7 @@ export default function App() {
             <div className="roundbox">Runde {g.round}</div>
             {g.building && (
               <div className="buildbox" role="status">
-                Anbauen: noch {g.building.left} Steine · Rechtsklick oder Esc beendet
+                Anbauen: Maustaste gedrückt halten und an die Mauer malen · noch {g.building.left} Steine · Rechtsklick oder Esc beendet
               </div>
             )}
           </div>

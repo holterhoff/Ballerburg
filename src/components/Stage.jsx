@@ -4,6 +4,7 @@ import { createRenderer, drawScene } from '../game/render.js';
 
 /** Canvas that runs the game loop and turns pointer input into world coordinates. */
 export default function Stage({ game, aim, onPick }) {
+  const lastPaint = useRef(null);
   const ref = useRef(null);
   const hover = useRef(null);
   const aimRef = useRef(aim);
@@ -42,12 +43,28 @@ export default function Stage({ game, aim, onPick }) {
       className="stage-canvas"
       aria-label="Spielfeld: zwei Burgen links und rechts eines Berges"
       role="img"
-      onPointerMove={(e) => (hover.current = toWorld(e))}
+      onPointerMove={(e) => {
+        const p = toWorld(e);
+        hover.current = p;
+        // painting stones: drag with the button held down
+        if (lastPaint.current && game?.building && e.buttons & 1) {
+          game.paintLine(lastPaint.current, p);
+          lastPaint.current = p;
+        }
+      }}
       onPointerLeave={() => (hover.current = null)}
       onPointerDown={(e) => {
-        hover.current = toWorld(e);
-        onPick(toWorld(e), e.button === 2);
+        const p = toWorld(e);
+        hover.current = p;
+        const building = !!game?.building && e.button === 0;
+        onPick(p, e.button === 2);
+        if (building) {
+          lastPaint.current = p;
+          e.currentTarget.setPointerCapture(e.pointerId);
+        }
       }}
+      onPointerUp={() => (lastPaint.current = null)}
+      onPointerCancel={() => (lastPaint.current = null)}
       onContextMenu={(e) => e.preventDefault()}
     />
   );
