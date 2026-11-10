@@ -178,7 +178,7 @@ export const CASTLES = {
   schatzburg: {
     name: 'Schatzburg',
     desc: 'Reich: eine riesige Schatzkammer im Palas, aber nur zwei Geschütze und ein kleines Kugellager.',
-    start: { money: 550, powder: 130, balls: 6, pop: 320 },
+    start: { money: 600, powder: 140, balls: 6, pop: 350 },
     ...design(186, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 186, 16);
       wall(0, 16, 122, 50);
@@ -557,7 +557,7 @@ export const CASTLES = {
   hexenturm: {
     name: 'Hexenturm',
     desc: 'Ein sehr hoher Turm an der Außenkante mit einem Geschütz ganz oben, davor eine niedrige Mauer.',
-    start: { money: 450, powder: 140, balls: 11, pop: 210 },
+    start: { money: 540, powder: 150, balls: 11, pop: 250 },
     ...design(150, ({ wall, room, merlons }) => {
       wall(0, 0, 150, 12);
       wall(0, 12, 150, 36);
@@ -743,7 +743,7 @@ const BALANCE = {
   original3: { start: { money: 280, powder: 90, balls: 7, pop: 190 } },
   original4: { start: { money: 130, powder: 60, balls: 4, pop: 140 } },
   original5: { start: { pop: 300 } },
-  original6: { start: { money: 320, powder: 90, balls: 6, pop: 200 } },
+  original6: { start: { money: 270, powder: 80, balls: 5, pop: 180 } },
 };
 
 /** Burgfehde gives the six original castles names; in the original they only had numbers. */
@@ -896,10 +896,12 @@ export function buildCastle(key, side, groundY) {
     chamber('powder'),
     chamber('balls'),
   ];
-  if (c.throne) {
-    const [tx, ty, tw, th] = c.throne;
-    objects.find((o) => o.type === 'king').hit = { x: wx(tx, tw), y: groundY - ty - th, w: tw, h: th };
-  }
+  // Original: drin(bg[21], bg[22], 30, 25) – a hit anywhere in the 30×25 throne room hits the king.
+  // Burgfehde's own castles get the same room, centred on the king and standing on his floor.
+  const king = objects.find((o) => o.type === 'king');
+  const [kx, ky] = c.king, [kw] = SIZES.king;
+  const [tx, ty, tw, th] = c.throne || [kx + kw / 2 - 15, ky, 30, 25];
+  king.hit = { x: wx(tx, tw), y: groundY - ty - th, w: tw, h: th };
   const cannonSlots = slots.map(({ x, y }) => ({ x, y }));
   const vane = objects.find((o) => o.type === 'vane');
   const caps = { money: chamberCapacity('gold', c.gold), powder: chamberCapacity('powder', c.powder), balls: chamberCapacity('balls', c.balls) };

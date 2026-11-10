@@ -58,8 +58,6 @@ const BRICK_H = 4;
 const BUILD_MARGIN = 40;
 /** Burgfehde: strongest wind (the original allowed about 30). */
 const WIND_MAX = 20;
-/** Burgfehde: free air a cannon needs above its barrel. */
-const CANNON_SKY = 16;
 
 /**
  * Computer strategies (original: cw[] with the seven named computer players).
@@ -643,45 +641,23 @@ export class Game {
    * building zone instead, so a damaged or rebuilt castle can always arm itself again.
    */
   freeCannonSlot(p = this.cur) {
+    // Original: a bought cannon goes to a free cannon place of the castle (ka[n][k].x == -1), nowhere else
     const taken = this.objectsOf(p.idx, 'cannon');
     const [w, h] = SIZES.cannon;
-    const slot = p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h)
-      && this.cannonFits(s.x, s.y));
-    return slot || this.cannonSpotInZone(p);
+    return p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h)) || null;
   }
 
-  /** The cannon rectangle is free, at least half of it rests on something, and the sky above is open. */
-  cannonFits(x, y) {
+  /**
+   * Original: init_ka() simply draws the cannon over whatever is there. Burgfehde clears the place,
+   * and if the wall below was shot away, it mortars a small pillar so the cannon stands on something.
+   */
+  prepareCannonSlot(s, side) {
     const [w, h] = SIZES.cannon;
-    if (y < 0 || !this.rectFree(x, y, w, h)) return false;
-    let support = 0;
-    for (let i = x; i < x + w; i++) if (this.isSolid(i, y + h)) support++;
-    if (support * 2 < w) return false;
-    return this.rectFree(x, Math.max(0, y - CANNON_SKY), w, Math.min(CANNON_SKY, y));
-  }
-
-  /** Highest free place on top of your own castle, bricks or ground (castle width + BUILD_MARGIN). */
-  cannonSpotInZone(p) {
-    const [w, h] = SIZES.cannon;
-    const zone = p.width + BUILD_MARGIN;
-    let best = null;
-    for (let k = 0; k + w <= zone; k += 2) {
-      const x = p.idx === 0 ? k : W - k - w;
-      // top surface under this footprint: first row from above where something solid starts
-      let top = H;
-      for (let i = x; i < x + w; i++) {
-        let y = 0;
-        while (y < top && !this.isSolid(i, y)) y++;
-        top = Math.min(top, y);
-      }
-      for (let y = top - h; y <= top - h + 4 && y + h <= H; y++) {
-        if (!this.cannonFits(x, y)) continue;
-        // prefer high places; on equal height the one nearer the enemy
-        if (!best || y < best.y || (y === best.y && k > best.k)) best = { x, y, k };
-        break;
-      }
-    }
-    return best && { x: best.x, y: best.y };
+    for (let j = s.y; j < s.y + h; j++)
+      for (let i = s.x; i < s.x + w; i++) if (i >= 0 && i < W && j >= 0 && j < H) this.solid[j * W + i] = 0;
+    for (let i = s.x + 2; i < s.x + w - 2; i++)
+      for (let j = s.y + h; j < H && j < s.y + h + 60 && !this.isSolid(i, j); j++) this.solid[j * W + i] = BRICK + side;
+    this.terrainDirty = true;
   }
 
   /** Original: fturm() places towers side by side in front of the castle, on the ground. */
@@ -757,6 +733,7 @@ export class Game {
       }
       case 'cannon': {
         const s = this.freeCannonSlot(p);
+        this.prepareCannonSlot(s, p.idx);
         const c = this.addObject('cannon', p.idx, s.x, s.y);
         if (p.type === 'human') this.selected = c.id;
         break;
@@ -909,7 +886,7 @@ export class Game {
         const how = mines < 2 && this.canBuy('mine', p) ? 'Baut einen Förderturm' : p.tax < 30 ? 'Erhöht die Steuern etwas' : 'Spart Euer Geld';
         return { text: `Kein Geschütz und zu wenig Geld (${p.money} von ${pr.cannon} Talern). ${how} und setzt diese Runde aus (Fertig).`, level: 'warn' };
       }
-      return { text: 'Auf Eurer Burg ist kein Platz für ein Geschütz. Baut Steine an (Markt → Anbauen), dann stellt eines darauf.', level: 'warn' };
+      return { text: 'Alle Geschützplätze Eurer Burg sind besetzt.', level: 'warn' };
     }
     if (!p.balls) return this.canBuy('balls', p)
       ? { text: `Ohne Kugeln könnt Ihr nicht schießen. Kauft Kugeln im Markt (${pr.balls} Taler).`, level: 'warn' }

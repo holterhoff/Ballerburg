@@ -127,6 +127,11 @@ export default function App() {
 
   const close = () => setDialog(null);
   const over = g?.phase === 'over';
+  // Original: the Ballerburg tune plays when a game ends
+  useEffect(() => {
+    if (over) sound.playMusic();
+    else sound.stopMusic();
+  }, [over]);
   const known = g ? g.hasVane(g.current) : false;
   const lastMsg = g?.messages[0];
 
@@ -152,19 +157,21 @@ export default function App() {
             <div className="roundbox">Runde {g.round}</div>
             {g.building && (
               <div className="buildbox" role="status">
-                Anbauen: Maustaste gedrückt halten und an die Mauer malen · noch {g.building.left} Steine · Rechtsklick oder Esc beendet
+                <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
+                <button className="gem-btn" onClick={() => g.stopBuilding()}>Fertig</button>
               </div>
             )}
           </div>
         )}
 
+        {g && <p className="turn-hint">Tipp: Halte das Gerät quer, dann wird das Spielfeld größer.</p>}
         {g && (
           <section className="statusline" aria-live="polite">
             {advice ? (
               <span className={`advice ${advice.level}`}><b>Der König:</b> {advice.text}</span>
             ) : <span className="hint">
               {humanTurn
-                ? 'Geschütz anklicken zum Schießen · Lagerkammer für den Markt · König für eine Audienz'
+                ? 'Geschütz antippen zum Schießen · Lagerkammer für den Markt · König für eine Audienz'
                 : g.phase === 'ai' ? `${p.name} überlegt …` : g.phase === 'flying' ? 'Die Kugel fliegt …' : ''}
             </span>}
             {lastMsg && <span className={`msg ${lastMsg.tone}`}>{lastMsg.text}</span>}

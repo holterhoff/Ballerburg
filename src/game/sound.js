@@ -51,12 +51,37 @@ function noise(dur, { freq = 800, gain = 0.4, delay = 0 } = {}) {
   src.start(t);
 }
 
+let music = null; // the playing original tune
+let musicPcm = null;
+
 export const sound = {
+  /** Original: ende() plays BALLER.MUS when a game is over, until the player clicks. */
+  async playMusic() {
+    const a = ac();
+    if (!a || music) return;
+    const { renderSong } = await import('./music.js');
+    if (!musicPcm) musicPcm = renderSong(a.sampleRate);
+    if (music || muted) return;
+    const buf = a.createBuffer(1, musicPcm.length, a.sampleRate);
+    buf.copyToChannel(musicPcm, 0);
+    const src = a.createBufferSource();
+    src.buffer = buf;
+    src.connect(a.destination);
+    src.onended = () => { if (music === src) music = null; };
+    src.start();
+    music = src;
+  },
+  stopMusic() {
+    if (!music) return;
+    try { music.stop(); } catch { /* already stopped */ }
+    music = null;
+  },
   get muted() {
     return muted;
   },
   setMuted(m) {
     muted = m;
+    if (m) this.stopMusic();
   },
   shot() {
     noise(0.3, { freq: 1200, gain: 0.35 });
