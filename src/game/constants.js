@@ -7,6 +7,8 @@
 
 export const W = 640;
 export const H = 400;
+/** Burgfehde: the stage is drawn at this multiple of the 640×400 world, so round shapes look smooth. */
+export const RES = 3;
 export const CELL = 4;
 export const COLS = 32;
 /** Default ground level when no terrain is given (the original picks 300..379 per castle). */

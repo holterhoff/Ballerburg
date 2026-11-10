@@ -13,6 +13,7 @@
  * Jede Methode nennt ihr Gegenstück im C-Original (baller1.c, baller2.c, market.c, cannoneer.c).
  * Abweichungen und Erweiterungen sind mit "Burgfehde:" gekennzeichnet.
  */
+import { GREETINGS, KRUSE_SAYINGS } from './kingtalk.js';
 import {
   W, H, CELL, G, STEPS_PER_SECOND, ANGLE_MAX, POWDER_MIN, POWDER_MAX, DEFAULT_AIM, SIZES, EARTH, BRICK,
 } from './constants.js';
@@ -52,6 +53,10 @@ const BUILD_MIN_Y = 155;
 const BRICK_W = 8;
 const BRICK_H = 4;
 const BUILD_MARGIN = 40;
+/** Burgfehde: strongest wind (the original allowed about 30). */
+const WIND_MAX = 20;
+/** Burgfehde: free air a cannon needs above its barrel. */
+const CANNON_SKY = 16;
 
 /**
  * Computer strategies (original: cw[] with the seven named computer players).
@@ -153,7 +158,7 @@ export class Game {
     });
 
     // original: wnd = rand()%60-30; prices p[j] = pr[j]*(95+rand()%11)/100
-    this.wind = rnd(60) - 30;
+    this.wind = rnd(40) - 20; // original: rand()%60-30; Burgfehde: a third weaker, the mountains fly higher
     this.prices = Object.fromEntries(MARKET.map((m, j) => [m.key, idiv(START_PRICES[j] * (95 + rnd(11)), 100)]));
     this.move = 0; // original: zug
     this.round = 1;
@@ -242,7 +247,8 @@ export class Game {
     const p = this.cur;
     // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
     p.visitedThisTurn = false;
-    if (this.move > 0) this.wind = idiv(this.wind * 9, 10) + rnd(12) - 6;
+    // original: wnd*9/10 + rand()%12-6; Burgfehde: smaller changes, never above WIND_MAX
+    if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + rnd(9) - 4, -WIND_MAX, WIND_MAX);
     this.hasFired = false;
     this.building = null;
     if (this.cur.type === 'ai') {
@@ -610,11 +616,52 @@ export class Game {
     this.emit();
   }
 
-  /** Original: init_ka() looks for the first cannon slot that is free and has room above it. */
+  /**
+   * Original: init_ka() looks for the first cannon slot that is free and has room above it.
+   * Burgfehde: a slot must also stand on something and see the sky. When every slot of the
+   * castle is shot away or built over, the cannon goes on the highest free place of your own
+   * building zone instead, so a damaged or rebuilt castle can always arm itself again.
+   */
   freeCannonSlot(p = this.cur) {
     const taken = this.objectsOf(p.idx, 'cannon');
     const [w, h] = SIZES.cannon;
-    return p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h) && this.rectFree(s.x, s.y, w, h)) || null;
+    const slot = p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h)
+      && this.cannonFits(s.x, s.y));
+    return slot || this.cannonSpotInZone(p);
+  }
+
+  /** The cannon rectangle is free, at least half of it rests on something, and the sky above is open. */
+  cannonFits(x, y) {
+    const [w, h] = SIZES.cannon;
+    if (y < 0 || !this.rectFree(x, y, w, h)) return false;
+    let support = 0;
+    for (let i = x; i < x + w; i++) if (this.isSolid(i, y + h)) support++;
+    if (support * 2 < w) return false;
+    return this.rectFree(x, Math.max(0, y - CANNON_SKY), w, Math.min(CANNON_SKY, y));
+  }
+
+  /** Highest free place on top of your own castle, bricks or ground (castle width + BUILD_MARGIN). */
+  cannonSpotInZone(p) {
+    const [w, h] = SIZES.cannon;
+    const zone = p.width + BUILD_MARGIN;
+    let best = null;
+    for (let k = 0; k + w <= zone; k += 2) {
+      const x = p.idx === 0 ? k : W - k - w;
+      // top surface under this footprint: first row from above where something solid starts
+      let top = H;
+      for (let i = x; i < x + w; i++) {
+        let y = 0;
+        while (y < top && !this.isSolid(i, y)) y++;
+        top = Math.min(top, y);
+      }
+      for (let y = top - h; y <= top - h + 4 && y + h <= H; y++) {
+        if (!this.cannonFits(x, y)) continue;
+        // prefer high places; on equal height the one nearer the enemy
+        if (!best || y < best.y || (y === best.y && k > best.k)) best = { x, y, k };
+        break;
+      }
+    }
+    return best && { x: best.x, y: best.y };
   }
 
   /** Original: fturm() places towers side by side in front of the castle, on the ground. */
@@ -764,7 +811,11 @@ export class Game {
     const cannons = this.objectsOf(p.idx, 'cannon').length;
     const mines = this.objectsOf(p.idx, 'mine').length;
     let result;
-    if (!rnd(20) || p.visitedThisTurn || p.visitStreak > 9) {
+    if (!p.greeted) {
+      // Burgfehde: the first audience is a greeting from the king about his maker, Eckhard Kruse
+      p.greeted = true;
+      result = { greeting: true, text: GREETINGS[rnd(GREETINGS.length)] };
+    } else if (!rnd(20) || p.visitedThisTurn || p.visitStreak > 9) {
       result = { refused: true, text: 'Der König ist nicht in der Stimmung, Euch zu empfangen.' };
     } else {
       const j = rnd(8);
@@ -781,6 +832,9 @@ export class Game {
       if (p.visitStreak > 6 || (!rnd(8) && p.visits > 8)) s.push(`Wisst Ihr, dass Ihr Uns schon ${p.visits}-mal besucht habt?`);
       if (this.move < 4) { s.length = 0; s.push('Was sollen Wir in so einer frühen Phase schon sagen?'); }
       let text = s[rnd(s.length)];
+      const tip = this.move >= 4 && this.advice(p);
+      if (tip && rnd(3)) text = tip.text; // Burgfehde: the king mostly tells you what to do now
+      if (this.move >= 2 && !rnd(4)) text = KRUSE_SAYINGS[rnd(KRUSE_SAYINGS.length)]; // Burgfehde: stories about Kruse
       if (text === p.lastAudience) text = 'Wir haben Euch nichts Neues zu sagen.';
       p.lastAudience = text;
       result = { text };
@@ -789,6 +843,52 @@ export class Game {
     p.visits++;
     p.visitStreak++;
     return result;
+  }
+
+  /**
+   * Burgfehde: the king's advice at the start of each human move, shown in the status line.
+   * First what the taxes did to the people during the last move, then the most urgent thing
+   * missing for the war: a cannon, powder, balls, shaft towers. When nothing can be done,
+   * he tells you to sit the move out.
+   */
+  advice(p) {
+    const pr = this.prices;
+    const cannons = this.objectsOf(p.idx, 'cannon').length;
+    const mines = this.objectsOf(p.idx, 'mine').length;
+    const lost = -(p.popChange || 0);
+    const few = p.pop < p.startPop * 0.4;
+    if (p.tax >= 70 && lost <= 0)
+      return { text: `${p.tax} % Steuern? Damit treibt Ihr das Volk aus der Burg, und über 65 % bringen die Steuern sogar weniger ein.`, level: 'alarm' };
+    if (this.move >= 2) {
+      if (few && lost > 0)
+        return { text: `Euer Volk läuft davon! Nur noch ${p.pop} Untertanen sind übrig. Senkt sofort die Steuern, sonst steht Ihr bald ganz allein da.`, level: 'alarm' };
+      if (p.tax >= 70)
+        return { text: `${p.tax} % Steuern? Das Volk hat keine Lust mehr auf Euch${lost > 0 ? `, ${lost} sind fortgezogen` : ''}. Über 65 % bringen die Steuern sogar weniger ein. Senkt sie!`, level: 'alarm' };
+      if (p.tax >= 45 && lost > 0)
+        return { text: `${lost} Untertanen haben Eure Burg verlassen. Die Leute murren über ${p.tax} % Steuern – senkt sie etwas.`, level: 'warn' };
+    }
+    if (!cannons) {
+      if (this.canBuy('cannon', p)) return { text: `Ihr habt kein Geschütz! Kauft eines im Markt (Lagerkammer anklicken), es kostet ${pr.cannon} Taler.`, level: 'warn' };
+      if (p.money < pr.cannon) {
+        const how = mines < 2 && this.canBuy('mine', p) ? 'Baut einen Förderturm' : p.tax < 30 ? 'Erhöht die Steuern etwas' : 'Spart Euer Geld';
+        return { text: `Kein Geschütz und zu wenig Geld (${p.money} von ${pr.cannon} Talern). ${how} und setzt diese Runde aus (Fertig).`, level: 'warn' };
+      }
+      return { text: 'Auf Eurer Burg ist kein Platz für ein Geschütz. Baut Steine an (Markt → Anbauen), dann stellt eines darauf.', level: 'warn' };
+    }
+    if (!p.balls) return this.canBuy('balls', p)
+      ? { text: `Ohne Kugeln könnt Ihr nicht schießen. Kauft Kugeln im Markt (${pr.balls} Taler).`, level: 'warn' }
+      : { text: 'Keine Kugeln und kein Geld dafür. Setzt diese Runde aus (Fertig) und sammelt Steuern.', level: 'warn' };
+    if (p.powder < POWDER_MIN) return this.canBuy('powder', p)
+      ? { text: `Das Pulver reicht nicht für einen Schuss. Kauft Pulver im Markt (${pr.powder} Taler).`, level: 'warn' }
+      : { text: 'Kein Pulver und kein Geld dafür. Setzt diese Runde aus (Fertig) und sammelt Steuern.', level: 'warn' };
+    if (mines < 2 && this.canBuy('mine', p) && p.money >= pr.mine + pr.balls)
+      return { text: `Ein Förderturm bringt jede Runde 40 bis 70 Taler. Kauft doch einen (${pr.mine} Taler).`, level: 'tip' };
+    if (p.balls < 2 && this.canBuy('balls', p)) return { text: 'Euch gehen die Kugeln aus. Füllt die Kugelkammer auf.', level: 'tip' };
+    if (p.powder < 25 && this.canBuy('powder', p)) return { text: 'Das Pulver wird knapp. Füllt die Pulverkammer auf.', level: 'tip' };
+    if (cannons < 2 && this.canBuy('cannon', p) && p.money >= pr.cannon * 2) return { text: 'Ihr habt Geld genug für ein zweites Geschütz.', level: 'tip' };
+    if (!this.hasVane(p.idx) && this.canBuy('vane', p)) return { text: 'Mit einer Windfahne seht Ihr, woher der Wind weht.', level: 'tip' };
+    if (p.tax < 12 && p.money < pr.cannon) return { text: 'Die Kassen sind leer. Ihr dürft die Steuern ruhig etwas erhöhen.', level: 'tip' };
+    return null;
   }
 
   /* ======================= Computer (original: comp(), z_kn() … z_pk()) ======================= */

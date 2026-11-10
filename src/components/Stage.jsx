@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { W, H } from '../game/constants.js';
+import { W, H, RES } from '../game/constants.js';
 import { createRenderer, drawScene } from '../game/render.js';
 
 /** Canvas that runs the game loop and turns pointer input into world coordinates. */
@@ -20,6 +20,8 @@ export default function Stage({ game, aim, onPick }) {
     const loop = (now) => {
       game.update((now - last) / 1000);
       last = now;
+      ctx.setTransform(RES, 0, 0, RES, 0, 0);
+      ctx.imageSmoothingEnabled = false;
       drawScene(ctx, game, r, { hover: hover.current, time: now / 1000, aim: aimRef.current });
       raf = requestAnimationFrame(loop);
     };
@@ -35,8 +37,8 @@ export default function Stage({ game, aim, onPick }) {
   return (
     <canvas
       ref={ref}
-      width={W}
-      height={H}
+      width={W * RES}
+      height={H * RES}
       className="stage-canvas"
       aria-label="Spielfeld: zwei Burgen links und rechts eines Berges"
       role="img"

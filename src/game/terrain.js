@@ -5,16 +5,16 @@
  */
 import { W, H } from './constants.js';
 
-export const TERRAINS = [
-  { key: 'klassisch', label: 'Klassisch', original: true },
-  { key: 'zufall', label: 'Zufall (alle Formen)' },
-  { key: 'spitze', label: 'Spitzberg' },
-  { key: 'doppel', label: 'Doppelgipfel' },
-  { key: 'tafel', label: 'Tafelberg' },
-  { key: 'kamm', label: 'Schiefer Kamm' },
-  { key: 'huegel', label: 'Hügelland' },
-  { key: 'riese', label: 'Himmelsriese' },
-];
+/**
+ * Burgfehde: the battlefield is always random. Mostly one mountain in the original shape, low or
+ * high; now and then a gorge between two rock towers. The summit always stays on the screen.
+ */
+export const TERRAINS = [{ key: 'zufall', label: 'Zufall' }];
+
+/** Highest point a summit may reach (y from the top edge), so it is always visible. */
+const PEAK_MIN_Y = 34;
+/** Share of battles fought across a gorge instead of one mountain. */
+const GORGE_CHANCE = 0.2;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (n) => Math.floor(Math.random() * n);
@@ -53,9 +53,14 @@ function classicMountain(h, by, widths) {
   // Burgfehde: stretch the mountain upward by a random factor 1.0..1.8, measured from the higher
   // castle ground. The flank shape stays the original one, the peak ends up anywhere from
   // the original height to near the top edge.
+  // Burgfehde: scale the height between flat (0.55) and as high as the screen allows; the summit
+  // never leaves the screen.
   const ref = Math.min(by[0], by[1]);
-  const stretch = 1 + Math.random() * 0.8;
-  for (let x = 0; x < W; x++) if (h[x] < ref) h[x] = Math.max(8, ref - (ref - h[x]) * stretch);
+  let peak = H;
+  for (let x = 0; x < W; x++) peak = Math.min(peak, h[x]);
+  const top = Math.max(0.55, (ref - PEAK_MIN_Y) / Math.max(1, ref - peak));
+  const stretch = 0.55 + Math.random() * (top - 0.55);
+  for (let x = 0; x < W; x++) if (h[x] < ref) h[x] = Math.max(PEAK_MIN_Y, ref - (ref - h[x]) * stretch);
 }
 
 function peakAt(x, l, cx, r) {
@@ -84,6 +89,37 @@ function shapeFn(kind, l, r) {
       const bumps = Array.from({ length: 3 + randInt(2) }, () => ({ c: rand(l + 30, r - 30), w: rand(35, 70), h: rand(0.4, 1) }));
       return { height: rand(60, 120), f: (x) => (x <= l || x >= r ? 0 : Math.min(1.2, bumps.reduce((s, b) => s + b.h * Math.max(0, 1 - Math.abs(x - b.c) / b.w) ** 1.5, 0))) };
     }
+    // Burgfehde: harder shapes. Two towers right in front of the castles force steep lobs.
+    case 'schlucht': {
+      const w = rand(45, 70), h2 = rand(0.75, 1);
+      return { height: rand(150, 250), f: (x) => Math.max(peakAt(x, l, l + w * 0.6, l + w * 1.6), h2 * peakAt(x, r - w * 1.6, r - w * 0.6, r)) };
+    }
+    // a thin, very tall needle: easy to hit, hard to clear
+    case 'nadel': {
+      const cx = mid + rand(-60, 60), w = rand(28, 45);
+      return { height: rand(330, 430), f: (x) => peakAt(x, cx - w, cx, cx + w) + 0.18 * peakAt(x, l, cx, r) };
+    }
+    // a crater: high rims, a deep bowl between them
+    case 'vulkan': {
+      const rim = rand(0.18, 0.26);
+      return { height: rand(220, 300), f: (x) => { if (x <= l || x >= r) return 0; const t = (x - l) / (r - l); const d = Math.abs(t - 0.5); return d < rim ? 0.45 + 0.5 * (d / rim) ** 2 : smooth((0.5 - d) / (0.5 - rim)); } };
+    }
+    // many sharp teeth of different height
+    case 'zacken': {
+      const n = 4 + randInt(3), teeth = Array.from({ length: n }, (_, i) => ({ c: l + ((i + 0.5) / n) * (r - l) + rand(-10, 10), h: rand(0.45, 1) }));
+      const hw = (r - l) / n * 0.62;
+      return { height: rand(190, 280), f: (x) => Math.max(0, ...teeth.map((t) => t.h * Math.max(0, 1 - Math.abs(x - t.c) / hw))) };
+    }
+    // steps rising towards one castle
+    case 'treppe': {
+      const steps = 4 + randInt(3), up = Math.random() < 0.5;
+      return { height: rand(200, 300), f: (x) => { if (x <= l || x >= r) return 0; const t = (x - l) / (r - l); const u = up ? t : 1 - t; const edge = Math.min(1, (1 - u) * 12); return Math.min(edge, (Math.floor(u * steps) + 1) / steps * smooth(Math.min(1, u * 8))); } };
+    }
+    // a nearly vertical wall in the middle
+    case 'mauer': {
+      const cx = mid + rand(-50, 50), w = rand(14, 24);
+      return { height: rand(300, 400), f: (x) => (Math.abs(x - cx) < w ? 1 : 0.12 * peakAt(x, l, cx, r)) };
+    }
     case 'riese':
       return { height: rand(360, 420), f: (x) => peakAt(x, l, mid + rand(-15, 15), r) };
     default: {
@@ -99,11 +135,8 @@ function shapeFn(kind, l, r) {
  * @param {string} kind terrain key from TERRAINS
  * @param {number[]} widths width of the left and right castle (original: bg[0])
  */
-export function generateTerrain(kind = 'klassisch', widths = [136, 136]) {
-  if (kind === 'zufall') {
-    const pool = TERRAINS.filter((t) => t.key !== 'zufall');
-    kind = pool[randInt(pool.length)].key;
-  }
+export function generateTerrain(kind = 'zufall', widths = [136, 136]) {
+  if (kind === 'zufall') kind = Math.random() < GORGE_CHANCE ? 'schlucht' : 'klassisch';
   const by = [castleGround(), castleGround()];
   const h = new Float32Array(W).fill(H);
   if (kind === 'klassisch') {
@@ -124,7 +157,7 @@ export function generateTerrain(kind = 'klassisch', widths = [136, 136]) {
     const f = s.f(x);
     let noise = 0;
     if (f > 0) for (const w of waves) noise += w.a * Math.sin(x * w.f + w.p);
-    h[x] = Math.min(base, base - s.height * f + noise * Math.min(1, f * 4));
+    h[x] = Math.max(PEAK_MIN_Y, Math.min(base, base - s.height * f + noise * Math.min(1, f * 4)));
   }
   return { heights: h, baseY: by, kind };
 }

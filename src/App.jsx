@@ -34,7 +34,7 @@ function WindGauge({ wind, known }) {
 export default function App() {
   const [, force] = useReducer((x) => x + 1, 0);
   const [sides, setSides] = useState(DEFAULT_SIDES);
-  const [terrain, setTerrain] = useState('klassisch');
+  const [terrain, setTerrain] = useState('zufall');
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   const [muted, setMuted] = useState(false);
   const [dialog, setDialog] = useState(null);
@@ -55,6 +55,7 @@ export default function App() {
   const g = gameRef.current;
   const p = g?.cur;
   const humanTurn = !!g && p.type === 'human' && g.phase === 'aim';
+  const advice = humanTurn ? g.advice(p) : null; // recomputed live, so a purchase updates it at once
 
   const setMode = (types) => {
     const next = sides.map((s, i) => ({ ...s, type: types[i] }));
@@ -159,11 +160,13 @@ export default function App() {
 
         {g && (
           <section className="statusline" aria-live="polite">
-            <span className="hint">
+            {advice ? (
+              <span className={`advice ${advice.level}`}><b>Der König:</b> {advice.text}</span>
+            ) : <span className="hint">
               {humanTurn
                 ? 'Geschütz anklicken zum Schießen · Lagerkammer für den Markt · König für eine Audienz'
                 : g.phase === 'ai' ? `${p.name} überlegt …` : g.phase === 'flying' ? 'Die Kugel fliegt …' : ''}
-            </span>
+            </span>}
             {lastMsg && <span className={`msg ${lastMsg.tone}`}>{lastMsg.text}</span>}
           </section>
         )}

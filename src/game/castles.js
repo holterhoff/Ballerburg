@@ -2,12 +2,14 @@
  * Burgen von Burgfehde.
  * Der Datenaufbau folgt dem Prinzip von BALLER.DAT aus Ballerburg ((C) 1987 Eckhard Kruse, GNU GPL v3):
  * Breite, Kanonenplätze, Thron, Windfahne, Lagerkammern (deren Größe die Kapazität bestimmt) und Startwerte.
- * Die Burgen selbst sind eigene Entwürfe.
+ * Die sechs Burgen „Ballerburg I“ bis „Ballerburg VI“ werden direkt aus der Original-BALLER.DAT gelesen
+ * (siehe ballerdat.js, mit Erlaubnis von Eckhard Kruse). Alle anderen Burgen sind eigene Entwürfe.
  *
  * Koordinaten: x zählt von der Außenkante der Burg (0) zum Berg hin, y vom Boden (0) nach oben.
  * Die rechte Burg wird gespiegelt. Objektpositionen bezeichnen die linke untere Ecke.
  */
 import { W, SIZES, BRICK } from './constants.js';
+import { BALLER_DAT } from './ballerdat.js';
 
 /** Material offset on top of BRICK + side: 0 = wall, ROOF = roof tiles. */
 export const ROOF = 2;
@@ -19,6 +21,8 @@ function design(width, build) {
     wall: (x0, y0, x1, y1) => parts.push({ op: 'rect', m: 0, r: [x0, y0, x1, y1] }),
     /** roof polygon, drawn in roof tiles */
     roof: (pts) => parts.push({ op: 'poly', m: ROOF, pts }),
+    /** solid wall polygon (used by the original castles) */
+    body: (pts, m = 0) => parts.push({ op: 'poly', m, pts }),
     /** cut a room out of the walls */
     room: (x0, y0, x1, y1) => parts.push({ op: 'clear', r: [x0, y0, x1, y1] }),
     /** battlements: merlons 4 wide and 6 high every `step` pixels, leaving gaps free for cannons */
@@ -98,7 +102,7 @@ export const CASTLES = {
   hochwacht: {
     name: 'Hochwacht',
     desc: 'Ein schlanker Turm schießt über jeden Berg, davor eine gedrungene Halle mit gut gefüllter Schatzkammer.',
-    start: { money: 480, powder: 100, balls: 8, pop: 220 },
+    start: { money: 520, powder: 110, balls: 9, pop: 220 },
     ...design(126, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 126, 8);
       wall(8, 8, 34, 112);
@@ -146,7 +150,7 @@ export const CASTLES = {
   zwillingsburg: {
     name: 'Zwillingsburg',
     desc: 'Zwei Türme mit Spitzdächern: links das Pulver, rechts die Kugeln, dazwischen Schatz und König.',
-    start: { money: 600, powder: 120, balls: 8, pop: 290 },
+    start: { money: 650, powder: 130, balls: 9, pop: 290 },
     ...design(162, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 162, 10);
       wall(0, 10, 26, 80);
@@ -266,7 +270,7 @@ export const CASTLES = {
   speicherburg: {
     name: 'Speicherburg',
     desc: 'Ein riesiges Lagerhaus mit gewaltigen Kammern für Gold, Pulver und Kugeln, aber nur zwei Geschütze.',
-    start: { money: 415, powder: 115, balls: 10, pop: 195 },
+    start: { money: 460, powder: 120, balls: 10, pop: 205 },
     ...design(190, ({ wall, roof, room, merlons }) => {
       wall(0, 0, 190, 12);
       wall(0, 12, 150, 58);
@@ -524,7 +528,297 @@ export const CASTLES = {
       };
     }),
   },
+  wasserburg: {
+    name: 'Wasserburg',
+    desc: 'Lang und flach, zwei Ecktürme und ein Torhaus, sechs Geschütze und eine große Schatzkammer.',
+    start: { money: 360, powder: 120, balls: 10, pop: 260 },
+    ...design(196, ({ wall, room, merlons }) => {
+      wall(0, 0, 196, 12);
+      wall(0, 12, 196, 40);
+      wall(0, 40, 24, 66);
+      wall(172, 40, 196, 66);
+      wall(84, 40, 112, 72);
+      room(6, 14, 48, 36);
+      room(88, 12, 106, 30);
+      room(118, 14, 146, 34);
+      room(152, 14, 190, 28);
+      merlons(0, 24, 66, 8, [[4, 18]]);
+      merlons(172, 196, 66, 8, [[176, 190]]);
+      merlons(84, 112, 72, 8, [[90, 104]]);
+      merlons(24, 84, 40, 8, [[33, 47]]);
+      merlons(112, 172, 40, 8, [[125, 139], [149, 163]]);
+      return {
+        cannons: [[5, 66], [91, 72], [177, 66], [34, 40], [126, 40], [150, 40]],
+        king: [91, 12], vane: [104, 72],
+        gold: [6, 14, 40, 20], powder: [118, 14, 27, 18], balls: [152, 14, 36, 12],
+      };
+    }),
+  },
+  hexenturm: {
+    name: 'Hexenturm',
+    desc: 'Ein sehr hoher Turm an der Außenkante mit einem Geschütz ganz oben, davor eine niedrige Mauer.',
+    start: { money: 450, powder: 140, balls: 11, pop: 210 },
+    ...design(150, ({ wall, room, merlons }) => {
+      wall(0, 0, 150, 12);
+      wall(0, 12, 150, 36);
+      wall(0, 36, 36, 120);
+      room(12, 12, 30, 30);
+      room(42, 14, 66, 34);
+      room(76, 14, 106, 32);
+      room(114, 14, 146, 26);
+      merlons(0, 36, 120, 8, [[11, 25]]);
+      merlons(36, 150, 36, 8, [[73, 87], [99, 113], [125, 139]]);
+      return {
+        cannons: [[12, 120], [74, 36], [100, 36], [126, 36]],
+        king: [15, 12], vane: [144, 36],
+        gold: [42, 14, 24, 20], powder: [76, 14, 27, 18], balls: [114, 14, 30, 12],
+      };
+    }),
+  },
+  schildmauer: {
+    name: 'Schildmauer',
+    desc: 'Eine dicke, hohe Mauer zum Berg hin schützt den König, dahinter das Wohnhaus mit Giebeldach.',
+    start: { money: 330, powder: 130, balls: 10, pop: 210 },
+    ...design(184, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 184, 12);
+      wall(0, 12, 184, 34);
+      wall(0, 34, 90, 58);
+      roof(gable(2, 90, 58, 18));
+      wall(140, 34, 184, 100);
+      room(6, 14, 30, 34);
+      room(40, 14, 70, 32);
+      room(84, 14, 132, 26);
+      room(152, 40, 170, 58);
+      merlons(140, 184, 100, 8, [[146, 160], [166, 180]]);
+      merlons(90, 140, 34, 8, [[99, 113], [119, 133]]);
+      return {
+        cannons: [[147, 100], [167, 100], [100, 34], [120, 34]],
+        king: [155, 40], vane: [134, 34],
+        gold: [6, 14, 24, 20], powder: [40, 14, 27, 18], balls: [84, 14, 48, 12],
+      };
+    }),
+  },
+  drachenhort: {
+    name: 'Drachenhort',
+    desc: 'Ein riesiger Goldschatz unter dem Haupthaus, aber nur drei Geschütze und wenig Kugeln.',
+    start: { money: 450, powder: 90, balls: 6, pop: 230 },
+    ...design(180, ({ wall, roof, room, merlons }) => {
+      wall(0, 0, 180, 12);
+      wall(0, 12, 180, 44);
+      wall(60, 44, 110, 80);
+      roof(gable(60, 110, 80, 22));
+      wall(0, 44, 22, 72);
+      wall(158, 44, 180, 70);
+      room(4, 14, 60, 38);
+      room(76, 12, 94, 30);
+      room(108, 14, 138, 32);
+      room(144, 14, 176, 26);
+      merlons(0, 22, 72, 8, [[4, 18]]);
+      merlons(158, 180, 70, 8, [[162, 176]]);
+      merlons(110, 158, 44, 8, [[121, 135]]);
+      merlons(22, 60, 44, 8);
+      return {
+        cannons: [[5, 72], [163, 70], [122, 44]],
+        king: [79, 12], vane: [137, 44],
+        gold: [4, 14, 56, 20], powder: [108, 14, 27, 18], balls: [144, 14, 30, 12],
+      };
+    }),
+  },
+  kasematte: {
+    name: 'Kasematte',
+    desc: 'Ein flacher, massiver Bunker: vier Geschütze auf dem Dach, viele Kugeln, der König tief im Stein.',
+    start: { money: 230, powder: 110, balls: 13, pop: 175 },
+    ...design(176, ({ wall, room, merlons }) => {
+      wall(0, 0, 176, 12);
+      wall(0, 12, 176, 62);
+      room(6, 14, 30, 34);
+      room(78, 12, 96, 30);
+      room(108, 14, 138, 32);
+      room(144, 14, 172, 38);
+      merlons(0, 176, 62, 8, [[5, 19], [45, 59], [95, 109], [145, 159]]);
+      return {
+        cannons: [[6, 62], [46, 62], [96, 62], [146, 62]],
+        king: [81, 12], vane: [116, 62],
+        gold: [6, 14, 24, 20], powder: [108, 14, 27, 18], balls: [144, 14, 24, 24],
+      };
+    }),
+  },
+  fuchsbau: {
+    name: 'Fuchsbau',
+    desc: 'Niedrig und geduckt hinter einem Erdhügel aus Stein, vier Geschütze auf zwei Ebenen.',
+    start: { money: 320, powder: 120, balls: 9, pop: 210 },
+    ...design(172, ({ wall, room, merlons }) => {
+      wall(0, 0, 172, 12);
+      wall(0, 12, 172, 40);
+      wall(50, 40, 120, 64);
+      room(8, 14, 32, 34);
+      room(76, 12, 94, 30);
+      room(106, 14, 136, 32);
+      room(142, 14, 168, 26);
+      merlons(50, 120, 64, 8, [[55, 69], [99, 113]]);
+      merlons(0, 50, 40, 8, [[3, 17]]);
+      merlons(120, 172, 40, 8, [[137, 151]]);
+      return {
+        cannons: [[56, 64], [100, 64], [4, 40], [138, 40]],
+        king: [79, 12], vane: [78, 64],
+        gold: [8, 14, 24, 20], powder: [106, 14, 27, 18], balls: [142, 14, 24, 12],
+      };
+    }),
+  },
+  kronburg: {
+    name: 'Kronburg',
+    desc: 'Ein hoher Bergfried mit Zinnenkrone in der Mitte, zwei Ecktürme, vier Geschütze.',
+    start: { money: 250, powder: 130, balls: 9, pop: 220 },
+    ...design(186, ({ wall, room, merlons }) => {
+      wall(0, 0, 186, 12);
+      wall(0, 12, 186, 38);
+      wall(0, 38, 26, 80);
+      wall(160, 38, 186, 80);
+      wall(72, 38, 114, 96);
+      room(6, 14, 30, 34);
+      room(84, 12, 102, 30);
+      room(114, 14, 144, 32);
+      room(150, 14, 180, 26);
+      merlons(0, 26, 80, 8, [[4, 18]]);
+      merlons(160, 186, 80, 8, [[164, 178]]);
+      merlons(72, 114, 96, 8, [[80, 94]]);
+      merlons(26, 72, 38, 8);
+      merlons(114, 160, 38, 8, [[125, 139]]);
+      return {
+        cannons: [[5, 80], [165, 80], [81, 96], [126, 38]],
+        king: [87, 12], vane: [100, 96],
+        gold: [6, 14, 24, 20], powder: [114, 14, 27, 18], balls: [150, 14, 30, 12],
+      };
+    }),
+  },
+  brueckenburg: {
+    name: 'Brückenburg',
+    desc: 'Zwei Türme, verbunden durch eine hohe Brücke mit Geschütz; fünf Geschütze, unter der Brücke nur Luft.',
+    start: { money: 260, powder: 120, balls: 10, pop: 230 },
+    ...design(196, ({ wall, room, merlons }) => {
+      wall(0, 0, 196, 12);
+      wall(0, 12, 54, 90);
+      wall(142, 12, 196, 74);
+      wall(54, 58, 142, 72);
+      room(18, 40, 36, 58);
+      room(6, 14, 30, 36);
+      room(150, 14, 180, 32);
+      room(150, 40, 190, 52);
+      merlons(0, 54, 90, 8, [[5, 19], [33, 47]]);
+      merlons(142, 196, 74, 8, [[147, 161], [175, 189]]);
+      merlons(54, 142, 72, 8, [[85, 99]]);
+      return {
+        cannons: [[6, 90], [34, 90], [148, 74], [176, 74], [86, 72]],
+        king: [21, 40], vane: [66, 72],
+        gold: [6, 14, 24, 20], powder: [150, 14, 27, 18], balls: [150, 40, 36, 12],
+      };
+    }),
+  },
 };
+
+/* ================= Original-Burgen aus BALLER.DAT (1987) ================= */
+
+/** Reads all numbers like rdzahl() in the original: text between two '*' is a remark. */
+function datNumbers(text) {
+  const out = [];
+  let rem = false, cur = '';
+  for (const ch of text + ' ') {
+    if (ch === '*') { rem = !rem; continue; }
+    if (!rem && (ch === '-' ? cur === '' : ch >= '0' && ch <= '9')) { cur += ch; continue; }
+    if (cur && cur !== '-') out.push(Number(cur));
+    cur = '';
+  }
+  return out;
+}
+
+/**
+ * Burgfehde: Die Original-Burgen sind sehr unterschiedlich stark (im Computer-Turnier gewann Burg 2
+ * 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen manche mit weniger Geschützen und Vorräten.
+ * Die Umrisse bleiben unverändert, die übrigen Geschützplätze kann man später mit Geschützen besetzen.
+ * Die Originalwerte stehen weiter in BALLER.DAT.
+ */
+const BALANCE = {
+  original1: { start: { money: 480, pop: 220 } },
+  original2: { startCannons: 2, start: { money: 200, powder: 100, balls: 6, pop: 180 } },
+  original3: { startCannons: 2 },
+  original4: { startCannons: 2, start: { money: 330, powder: 120, balls: 8, pop: 240 } },
+  original5: { start: { pop: 280 } },
+  original6: { startCannons: 2 },
+};
+
+const ROMAN = ['I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X'];
+
+/** Turns BALLER.DAT into castles in Burgfehde's format. */
+function originalCastles(text) {
+  const n = datNumbers(text);
+  const castles = {};
+  let i = 0, k = 0;
+  while (n[i] !== -999 && i < n.length) {
+    const bg = n.slice(i, i + 41); // bg[0] = width, bg[1..40] as in the original
+    i += 41;
+    const draw = [];
+    while (n[i] !== -1) draw.push(n[i++]);
+    i++;
+    const at = (j) => [bg[j], bg[j + 1]];
+    const cannons = [];
+    for (let c = 0; c < 10 && bg[1 + c * 2] > -1; c++) cannons.push(at(1 + c * 2));
+    const [kx, ky] = at(21), [vx, vy] = at(23);
+    const chamber = (j) => [bg[25 + j * 2], bg[26 + j * 2], bg[31 + j * 2], bg[32 + j * 2]];
+    const gold = chamber(0), powder = chamber(1), balls = chamber(2);
+    k++;
+    castles[`original${k}`] = {
+      name: `Ballerburg ${ROMAN[k - 1]}`,
+      desc: `Originalburg ${k} aus BALLER.DAT von Eckhard Kruse, gezeichnet am 12.4.1987 für den Atari ST.`
+        + (BALANCE[`original${k}`]?.startCannons ? ` Startet mit ${BALANCE[`original${k}`].startCannons} von ${cannons.length} Geschützen.` : ''),
+      original: true,
+      start: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40], ...BALANCE[`original${k}`]?.start },
+      startCannons: BALANCE[`original${k}`]?.startCannons,
+      ...design(bg[0], ({ body, room }) => {
+        // draw(): the first four values are unused, then polygons; -2,a,b switches to the roof pattern
+        let j = 4, mat = 'wall';
+        while (j < draw.length) {
+          if (draw[j] === -2) { mat = 'roof'; j += 3; continue; }
+          if (draw[j] === -4) { j++; continue; }
+          const pts = [];
+          while (j < draw.length && draw[j] > -1) { pts.push([draw[j], draw[j + 1]]); j += 2; }
+          j++;
+          if (pts.length > 2) body(pts, mat === 'roof' ? ROOF : 0);
+        }
+        // the original clears a 30x25 throne room and the three chambers out of the walls
+        room(kx, ky, kx + 30, ky + 25);
+        for (const [x, y, w, h] of [gold, powder, balls]) room(x, y, x + w, y + h);
+        return {
+          cannons,
+          king: [kx + 9, ky], vane: [vx - 2, vy],
+          gold, powder, balls,
+        };
+      }),
+    };
+    settleObjects(castles[`original${k}`]);
+  }
+  return castles;
+}
+
+/**
+ * The Atari drew cannons and the vane as sprites over the walls. Here they are objects in the
+ * pixel world, so each one is nudged by a few pixels until it stands free on the masonry.
+ */
+function settleObjects(c) {
+  const px = rasterise(c);
+  const solid = (x, y) => y < 0 || px.has(`${x},${y}`);
+  const overlaps = (x, y, w, h) => { for (let j = y; j < y + h; j++) for (let i = x; i < x + w; i++) if (solid(i, j)) return true; return false; };
+  const supported = (x, y, w) => { for (let i = x; i < x + w; i++) if (solid(i, y - 1)) return true; return false; };
+  const settle = ([x, y], [w, h]) => {
+    let ny = y;
+    while (overlaps(x, ny, w, h) && ny < y + 8) ny++;
+    while (!supported(x, ny, w) && !overlaps(x, ny - 1, w, h) && ny > y - 8) ny--;
+    return [x, ny];
+  };
+  c.cannons = c.cannons.map((p) => settle(p, SIZES.cannon));
+  c.vane = settle(c.vane, SIZES.vane);
+}
+
+Object.assign(CASTLES, originalCastles(BALLER_DAT));
 
 function insidePoly(pts, x, y) {
   let inside = false;
@@ -586,15 +880,17 @@ export function buildCastle(key, side, groundY) {
     const [x, y, w, h] = c[type];
     return { type, x: wx(x, w), y: groundY - y - h, w, h };
   };
+  // all positions are cannon slots; a castle may start with fewer cannons than it has slots
+  const slots = c.cannons.map((p) => place('cannon', p));
   const objects = [
-    ...c.cannons.map((p) => place('cannon', p)),
+    ...slots.slice(0, c.startCannons ?? slots.length),
     place('king', c.king),
     place('vane', c.vane),
     chamber('gold'),
     chamber('powder'),
     chamber('balls'),
   ];
-  const cannonSlots = objects.filter((o) => o.type === 'cannon').map(({ x, y }) => ({ x, y }));
+  const cannonSlots = slots.map(({ x, y }) => ({ x, y }));
   const vane = objects.find((o) => o.type === 'vane');
   const caps = { money: chamberCapacity('gold', c.gold), powder: chamberCapacity('powder', c.powder), balls: chamberCapacity('balls', c.balls) };
   return { pixels, rooms, objects, cannonSlots, vaneSlot: { x: vane.x, y: vane.y }, width: c.width, caps };

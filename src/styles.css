@@ -91,6 +91,9 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; min-height: 32px;
 }
 .statusline .hint { color: #444; }
+.statusline .advice { color: #5a3d08; }
+.statusline .advice.warn { color: #8a4b00; }
+.statusline .advice.alarm { color: #8a1c10; font-weight: bold; }
 .statusline .msg.hit { color: #8a1c10; }
 .statusline .msg.big { font-weight: bold; }
 

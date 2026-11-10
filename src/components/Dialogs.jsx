@@ -4,7 +4,7 @@ import Cannon3D from './Cannon3D.jsx';
 import { MARKET, STRATEGIES } from '../game/engine.js';
 import { ANGLE_MAX, POWDER_MIN, POWDER_MAX, H } from '../game/constants.js';
 import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
-import { TERRAINS, generateTerrain } from '../game/terrain.js';
+import { generateTerrain } from '../game/terrain.js';
 import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS, TIME_CHOICES } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
 
@@ -157,7 +157,13 @@ export function MarketDialog({ game, onClose }) {
 export function KingDialog({ result, onClose }) {
   return (
     <Dialog title="" onClose={onClose} className="narrow">
-      {result.refused ? <p className="gem-text">{result.text}</p> : (
+      {result.refused ? <p className="gem-text">{result.text}</p> : result.greeting ? (
+        <>
+          <p className="gem-text"><b>Ein Grußwort des Königs</b></p>
+          <p className="gem-text king-quote">„{result.text}“</p>
+          <p className="gem-small">Ballerburg: erfunden 1987 von Eckhard Kruse.</p>
+        </>
+      ) : (
         <>
           <p className="gem-text">Der König spricht:</p>
           <p className="gem-text king-quote">„{result.text}“</p>
@@ -219,7 +225,7 @@ function StrategyPicker({ value, onChange }) {
 /** "Neues Spiel": names, castles, battlefield. */
 export function SetupDialog({ initial, onStart, onCancel }) {
   const [sides, setSides] = useState(initial.sides);
-  const [terrain, setTerrain] = useState(initial.terrain);
+  const terrain = 'zufall';
   const [field, setField] = useState(() => generateTerrain(initial.terrain, initial.sides.map((s) => CASTLES[s.castle].width)));
   const ref = useRef(null);
   const reroll = (kind = terrain, s = sides) => setField(generateTerrain(kind, s.map((x) => CASTLES[x.castle].width)));
@@ -255,12 +261,7 @@ export function SetupDialog({ initial, onStart, onCancel }) {
       <fieldset className="gem-box">
         <legend>Schlachtfeld</legend>
         <div className="terrain-row">
-          <label className="gem-field">
-            <span>Berg:</span>
-            <select value={terrain} onChange={(e) => { setTerrain(e.target.value); reroll(e.target.value); }}>
-              {TERRAINS.map((t) => <option key={t.key} value={t.key}>{t.label}{t.original ? ' (Original)' : ''}</option>)}
-            </select>
-          </label>
+          <span>Der Berg wird zufällig gewürfelt.</span>
           <Btn type="button" onClick={() => reroll()}>Neu würfeln</Btn>
         </div>
         <canvas ref={ref} className="terrain-preview" role="img" aria-label="Vorschau des Schlachtfelds" />

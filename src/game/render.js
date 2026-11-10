@@ -1,4 +1,4 @@
-import { W, H, EARTH, BRICK } from './constants.js';
+import { W, H, RES, EARTH, BRICK } from './constants.js';
 import { STORE_CELL } from './castles.js';
 
 export const SIDE_COLORS = [
@@ -20,19 +20,28 @@ function hash(x, y) {
   return ((h ^ (h >>> 16)) >>> 0) / 4294967296;
 }
 
-const canvas = () => {
+const canvas = (scale = 1) => {
   const cv = document.createElement('canvas');
-  cv.width = W;
-  cv.height = H;
+  cv.width = W * scale;
+  cv.height = H * scale;
   return cv;
 };
 
+/** A high-resolution layer: RES device pixels per world pixel, drawn in world coordinates. */
+const hiCanvas = () => {
+  const cv = canvas(RES);
+  const ctx = cv.getContext('2d');
+  ctx.setTransform(RES, 0, 0, RES, 0, 0);
+  ctx.imageSmoothingEnabled = false;
+  return [cv, ctx];
+};
+
 export function createRenderer() {
-  const bg = canvas();
+  const [bg, bgctx] = hiCanvas();
   const tc = canvas();
   const tctx = tc.getContext('2d');
-  const world = canvas();
-  return { bg, sky: null, tc, tctx, img: tctx.createImageData(W, H), world, wctx: world.getContext('2d') };
+  const [world, wctx] = hiCanvas();
+  return { bg, bgctx, sky: null, tc, tctx, img: tctx.createImageData(W, H), world, wctx };
 }
 
 /**
@@ -317,19 +326,50 @@ function drawBalls(c, x, y) {
   ball(x + 2, y); ball(x + 6, y);
 }
 
+/**
+ * A heap of gold coins in an 8×8 cell, drawn with smooth shapes on the high-resolution layer:
+ * a mound of coins with a warm gradient, coin rims, one coin standing on edge and a twinkle.
+ */
 function drawGold(c, x, y, t) {
-  c.fillStyle = '#b8873e';
-  px(c, x + 1, y + 3, 6, 5);
-  px(c, x + 2, y + 2, 4, 1);
-  c.fillStyle = '#7a5523';
-  px(c, x + 3, y, 2, 2);
-  px(c, x + 1, y + 7, 6, 1);
-  c.fillStyle = '#f2c94c';
-  px(c, x + 3, y + 4, 2, 2);
-  if (Math.floor(t * 2 + x) % 5 === 0) {
-    c.fillStyle = '#fff6cf';
-    px(c, x + 6, y + 3, 1, 1);
+  c.save();
+  // shadow on the floor
+  c.fillStyle = 'rgba(30, 18, 6, 0.45)';
+  c.beginPath(); c.ellipse(x + 4, y + 7.7, 4.2, 0.9, 0, 0, Math.PI * 2); c.fill();
+  // the mound
+  const g = c.createRadialGradient(x + 3, y + 3.2, 0.3, x + 4, y + 5.5, 5);
+  g.addColorStop(0, '#fff3b0'); g.addColorStop(0.35, '#f4c542'); g.addColorStop(0.8, '#b9821f'); g.addColorStop(1, '#7a4f12');
+  c.fillStyle = g;
+  c.beginPath();
+  c.moveTo(x + 0.1, y + 7.6);
+  c.bezierCurveTo(x + 0.6, y + 4.6, x + 2.2, y + 3.3, x + 4, y + 3.3);
+  c.bezierCurveTo(x + 5.8, y + 3.3, x + 7.4, y + 4.6, x + 7.9, y + 7.6);
+  c.closePath(); c.fill();
+  // coin rims lying in the heap
+  c.strokeStyle = 'rgba(122, 79, 18, 0.75)';
+  c.lineWidth = 0.28;
+  for (const [cx, cy, rx] of [[2.2, 6.4, 1.3], [5.6, 6.6, 1.4], [3.9, 4.6, 1.2], [6.2, 4.9, 0.9], [1.6, 4.9, 0.8]]) {
+    c.beginPath(); c.ellipse(x + cx, y + cy, rx, rx * 0.42, 0, 0, Math.PI * 2); c.stroke();
   }
+  // a few loose coins lying on top, and a gold bar leaning against the heap
+  for (const [cx, cy] of [[3.2, 3.6], [4.9, 3.9]]) {
+    c.fillStyle = '#ffe27a';
+    c.beginPath(); c.ellipse(x + cx, y + cy, 1.1, 0.45, 0, 0, Math.PI * 2); c.fill();
+    c.strokeStyle = '#8a5a14'; c.lineWidth = 0.22; c.stroke();
+  }
+  const bar = c.createLinearGradient(0, y + 5.6, 0, y + 7.6);
+  bar.addColorStop(0, '#fff0a0'); bar.addColorStop(1, '#a8711a');
+  c.fillStyle = bar;
+  c.beginPath(); c.moveTo(x + 4.6, y + 7.6); c.lineTo(x + 5.2, y + 5.9); c.lineTo(x + 7.4, y + 5.9); c.lineTo(x + 7.9, y + 7.6); c.closePath(); c.fill();
+  c.strokeStyle = '#7a4f12'; c.lineWidth = 0.22; c.stroke();
+  // twinkle, now and then
+  const tw = Math.max(0, Math.sin(t * 2.3 + x * 0.7));
+  if (tw > 0.6) {
+    const k = (tw - 0.6) / 0.4, sx = x + 5.3, sy = y + 3.6;
+    c.strokeStyle = `rgba(255, 252, 230, ${k})`;
+    c.lineWidth = 0.3;
+    c.beginPath(); c.moveTo(sx - 1.4 * k, sy); c.lineTo(sx + 1.4 * k, sy); c.moveTo(sx, sy - 1.4 * k); c.lineTo(sx, sy + 1.4 * k); c.stroke();
+  }
+  c.restore();
 }
 
 function drawVane(c, x, y, pal, wind, t) {
@@ -383,33 +423,56 @@ function drawMine(c, x, y, t, damage = 0) {
   px(c, x + 6, y + 21, 4, 3);
 }
 
-/** A bulging powder keg: lid, staves, two iron hoops, a highlight and some spilled powder. */
+/**
+ * A powder keg in an 8×8 cell, drawn with smooth shapes: bulging wooden staves lit from the left,
+ * two iron hoops, a red warning band, the lid and a little heap of spilled black powder.
+ */
 function drawKeg(c, x, y) {
-  c.fillStyle = '#5c361b';
-  px(c, x + 1, y, 6, 1);
-  c.fillStyle = '#b07a42';
-  px(c, x + 2, y, 4, 1);
-  c.fillStyle = '#8a5530';
-  px(c, x + 1, y + 1, 6, 1);
-  px(c, x + 1, y + 6, 6, 1);
-  c.fillStyle = '#9a6234';
-  px(c, x, y + 3, 8, 2);
-  c.fillStyle = '#6e4222';
-  px(c, x + 2, y + 1, 1, 6);
-  px(c, x + 5, y + 1, 1, 6);
-  c.fillStyle = '#c99158';
-  px(c, x + 1, y + 3, 1, 2);
-  c.fillStyle = '#44444c';
-  px(c, x, y + 2, 8, 1);
-  px(c, x, y + 5, 8, 1);
-  c.fillStyle = '#9a9aa6';
-  px(c, x + 1, y + 2, 1, 1);
-  px(c, x + 1, y + 5, 1, 1);
-  c.fillStyle = '#5c361b';
-  px(c, x + 2, y + 7, 4, 1);
-  // a few grains of black powder spilled at the foot of the keg
-  c.fillStyle = '#26232a';
-  px(c, x + 6, y + 7, 1, 1);
+  c.save();
+  c.fillStyle = 'rgba(20, 10, 4, 0.45)';
+  c.beginPath(); c.ellipse(x + 4, y + 7.8, 3.9, 0.8, 0, 0, Math.PI * 2); c.fill();
+  // body with bulging sides
+  const body = new Path2D();
+  body.moveTo(x + 1.3, y + 0.9);
+  body.quadraticCurveTo(x - 0.3, y + 4, x + 1.3, y + 7.4);
+  body.lineTo(x + 6.7, y + 7.4);
+  body.quadraticCurveTo(x + 8.3, y + 4, x + 6.7, y + 0.9);
+  body.closePath();
+  const wood = c.createLinearGradient(x, 0, x + 8, 0);
+  wood.addColorStop(0, '#5a3218'); wood.addColorStop(0.28, '#c48a4c'); wood.addColorStop(0.55, '#9a6232'); wood.addColorStop(1, '#4a2912');
+  c.fillStyle = wood;
+  c.fill(body);
+  c.save();
+  c.clip(body);
+  // staves
+  c.strokeStyle = 'rgba(58, 30, 12, 0.55)';
+  c.lineWidth = 0.22;
+  for (const sx of [2.2, 3.4, 4.6, 5.8]) {
+    c.beginPath(); c.moveTo(x + sx, y + 0.8); c.quadraticCurveTo(x + sx + (sx - 4) * 0.35, y + 4, x + sx, y + 7.5); c.stroke();
+  }
+  // red warning band and iron hoops
+  c.fillStyle = '#a3261b';
+  c.fillRect(x, y + 3.5, 8, 1.1);
+  c.fillStyle = 'rgba(255, 200, 170, 0.35)';
+  c.fillRect(x, y + 3.5, 8, 0.25);
+  for (const hy of [1.9, 5.9]) {
+    const hoop = c.createLinearGradient(x, 0, x + 8, 0);
+    hoop.addColorStop(0, '#2b2b31'); hoop.addColorStop(0.3, '#9da0ab'); hoop.addColorStop(1, '#2b2b31');
+    c.fillStyle = hoop;
+    c.fillRect(x, y + hy, 8, 0.7);
+  }
+  c.restore();
+  // lid
+  c.fillStyle = '#6b3d1c';
+  c.beginPath(); c.ellipse(x + 4, y + 0.95, 2.75, 0.62, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#b98149';
+  c.beginPath(); c.ellipse(x + 4, y + 0.85, 2.2, 0.38, 0, 0, Math.PI * 2); c.fill();
+  // spilled powder at the foot
+  c.fillStyle = '#1d1a20';
+  c.beginPath(); c.ellipse(x + 7.1, y + 7.65, 1.1, 0.45, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#3a3640';
+  c.fillRect(x + 6.4, y + 7.35, 0.35, 0.3);
+  c.restore();
 }
 
 function drawBall(c, x, y) {
@@ -469,10 +532,10 @@ export function drawScene(c, game, r, view) {
   if (game.shake > 0.2) c.translate(Math.round((Math.random() - 0.5) * game.shake), Math.round((Math.random() - 0.5) * game.shake));
   const skyKey = game.sky || 'abend';
   if (r.sky !== skyKey) {
-    paintBackground(r.bg.getContext('2d'), skyKey);
+    paintBackground(r.bgctx, skyKey);
     r.sky = skyKey;
   }
-  c.drawImage(r.bg, 0, 0);
+  c.drawImage(r.bg, 0, 0, W, H);
   // terrain, castles and objects go to a separate layer so the time-of-day light only tints them
   const sky = c;
   c = r.wctx;
@@ -504,7 +567,7 @@ export function drawScene(c, game, r, view) {
     c.globalCompositeOperation = 'source-over';
   }
   c = sky;
-  c.drawImage(r.world, 0, 0);
+  c.drawImage(r.world, 0, 0, W, H);
 
   const pr = game.projectile;
   if (pr) {
