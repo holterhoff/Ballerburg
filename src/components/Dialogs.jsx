@@ -332,6 +332,7 @@ export function OptionsDialog({ options, onApply, onCancel }) {
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.landslides} onChange={(e) => ext('landslides', e.target.checked)} /> Unterhöhlte Hänge rutschen nach</label>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.falling} onChange={(e) => ext('falling', e.target.checked)} /> Burgteile ohne Halt stürzen ab</label>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.overheat} onChange={(e) => ext('overheat', e.target.checked)} /> Geschütze laufen heiß (der 4. Schuss in Folge sprengt das Geschütz)</label>
+        <label className="gem-check-row"><input type="checkbox" checked={o.extensions.robber} onChange={(e) => ext('robber', e.target.checked)} /> Ein Räuber zieht durchs Tal und stiehlt Gold</label>
       </fieldset>
       <div className="gem-actions">
         <Btn onClick={onCancel}>Abbruch</Btn>
@@ -360,10 +361,11 @@ const RULES = [
     'Treffer in Lagerkammern kosten bis zu 200 Gold, das ganze Pulver oder zwei Kugeln. Jeder Einschlag in einer Burg kann Einwohner kosten.',
   ]],
   ['Erweiterungen', [
-    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Unter Modus → Optionen lassen sie sich ein- und ausschalten. Nur das Heißlaufen ist von Anfang an eingeschaltet.',
+    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Unter Modus → Optionen lassen sie sich ein- und ausschalten. Heißlaufen und Räuber sind von Anfang an eingeschaltet.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
+    'Der Räuber: Ab der zweiten Runde schleicht ein vermummter Räuber durchs Tal. Nach jedem Zug geht er ein Stück auf die Burg zu, die er sich ausgesucht hat, und ab und zu ändert er seine Meinung. Erreicht er die Burgmauer, stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler. Triffst du ihn mit einer Kugel, bekommst du seine ganze Beute und 50 Taler Belohnung. Danach dauert es einige Züge, bis der nächste Räuber kommt.',
   ]],
 ];
 

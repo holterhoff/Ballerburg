@@ -25,6 +25,19 @@ import { sound } from './sound.js';
 const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
 /** Extension "overheat": a cannon survives this many shots in a row, the next one blows it up. */
 export const HEAT_MAX = 3;
+/**
+ * Extension "robber": a masked thief roams the valley. After every move he walks a random
+ * distance towards the castle he has picked; at its wall he steals part of the treasury.
+ * A ball that hits him gives the shooter the loot back plus a reward.
+ */
+export const ROBBER = {
+  width: 12, height: 16,
+  stepMin: 22, stepMax: 55, // pixels per move
+  stealMin: 15, stealMax: 30, stealCap: 250, // per cent of the treasury, at most stealCap
+  reward: 50,
+  firstMoves: 2, respawnMin: 4, respawnMax: 8, // moves until he (re)appears
+  walkSpeed: 26, // pixels per second while he walks on screen
+};
 import { recordResult } from './scores.js';
 
 /** Original: anbau() lets you lay 20 bricks per purchase. */
@@ -96,7 +109,7 @@ export const DEFAULT_OPTIONS = {
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Extensions. Landslides and falling are off so the game plays like the original; overheating is on. */
-  extensions: { landslides: false, falling: false, overheat: true },
+  extensions: { landslides: false, falling: false, overheat: true, robber: true },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -187,6 +200,9 @@ export class Game {
     this.aiTimer = 0;
     this.aiStep = null;
     this.turnEnding = 0;
+    /** Extension "robber". */
+    this.robber = null;
+    this.robberWait = ROBBER.firstMoves;
     this.terrainDirty = true;
     this.say('Eine neue Fehde beginnt.', 'big');
     this.startMove();
@@ -315,6 +331,7 @@ export class Game {
       this.end(mover.idx, 'capitulation', next);
       return;
     }
+    if (this.options.extensions.robber) this.robberMove();
     if (this.options.maxRounds && Math.floor(this.move / 2) >= this.options.maxRounds) {
       const [a, b] = this.players.map((pl) => this.wealth(pl));
       const winner = b < a ? 0 : 1;
@@ -467,6 +484,12 @@ export class Game {
       this.endFlight(pr);
       return;
     }
+    if (this.robberAt(pr.x, pr.y, 1)) {
+      this.endFlight(pr);
+      this.flashes.push({ x: pr.x, y: pr.y, r: 12, t: 0, life: 0.4 });
+      this.catchRobber(pr.owner);
+      return;
+    }
     let free = true;
     if (pr.x >= 3 && pr.x <= 637 && pr.y <= 397) {
       const x = pr.x | 0, y = pr.y | 0;
@@ -513,6 +536,7 @@ export class Game {
           else if (CHAMBERS.includes(o.type) && this.near(o, x, y, 3)) { this.hitChamber(o, by); stop = true; }
         }
       }
+      if (this.robberAt(x, y, 6)) this.catchRobber(by);
       if (stop || this.phase === 'over') break;
       x += vx;
       y -= vy;
@@ -643,6 +667,93 @@ export class Game {
   spawnDebris(x, y, col) {
     if (this.particles.length > 600) return;
     this.particles.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: -20 - Math.random() * 90, life: 0.6 + Math.random() * 0.8, col });
+  }
+
+  /* ======================= Extension "robber" ======================= */
+
+  /** The top of the ground (earth or wall) at column x. */
+  groundAt(x) {
+    const xi = clamp(Math.round(x), 0, W - 1);
+    for (let y = 0; y < H; y++) if (this.solid[y * W + xi]) return y;
+    return H;
+  }
+
+  /** Where the robber stops in front of a castle: just outside its wall. */
+  robberGoal(side) {
+    return side === 0 ? this.players[0].width + 8 : W - this.players[1].width - 8;
+  }
+
+  robberAt(x, y, pad = 0) {
+    const r = this.robber;
+    if (!r) return false;
+    const gy = this.groundAt(r.x);
+    return x >= r.x - ROBBER.width / 2 - pad && x <= r.x + ROBBER.width / 2 + pad && y >= gy - ROBBER.height - pad && y <= gy + pad;
+  }
+
+  /** After each move: the robber appears, walks on, or robs the castle he has reached. */
+  robberMove() {
+    const r = this.robber;
+    if (!r) {
+      if (--this.robberWait > 0) return;
+      const target = rnd(2);
+      const x = W / 2 + rnd(121) - 60;
+      this.robber = { x, shownX: x, target, dir: target ? 1 : -1, loot: 0, rest: 0 };
+      this.say(`Ein Räuber schleicht durchs Tal! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`, 'warn');
+      return;
+    }
+    const step = ROBBER.stepMin + rnd(ROBBER.stepMax - ROBBER.stepMin);
+    if (r.rest > 0) {
+      // after a robbery he first walks back towards the middle
+      r.rest--;
+      r.dir = r.x < W / 2 ? 1 : -1;
+      r.x = clamp(r.x + r.dir * step, this.robberGoal(0), this.robberGoal(1));
+      if (r.rest === 0) {
+        r.target = rnd(2);
+        this.say(`Der Räuber hat jetzt die Burg von ${this.players[r.target].name} im Auge.`);
+      }
+      return;
+    }
+    if (rnd(5) === 0) {
+      // now and then he changes his mind
+      const t = rnd(2);
+      if (t !== r.target) this.say(`Der Räuber macht kehrt und schleicht zur Burg von ${this.players[t].name}.`);
+      r.target = t;
+    }
+    const goal = this.robberGoal(r.target);
+    r.dir = goal > r.x ? 1 : -1;
+    r.x = Math.abs(goal - r.x) <= step ? goal : r.x + r.dir * step;
+    if (r.x === goal) this.robberSteals(this.players[r.target]);
+  }
+
+  robberSteals(p) {
+    const r = this.robber;
+    const want = idiv(p.money * (ROBBER.stealMin + rnd(ROBBER.stealMax - ROBBER.stealMin + 1)), 100);
+    const amount = Math.min(p.money, ROBBER.stealCap, Math.max(want, 20));
+    p.money -= amount;
+    r.loot += amount;
+    r.rest = 2;
+    p.robbed = (p.robbed || 0) + amount;
+    this.say(amount > 0
+      ? `Der Räuber hat ${amount} Taler aus der Schatzkammer von ${p.name} gestohlen!`
+      : `Der Räuber findet bei ${p.name} keinen Taler und zieht fluchend ab.`, 'warn');
+  }
+
+  /** A ball got the robber: the shooter gets the loot back plus a reward. */
+  catchRobber(by) {
+    const r = this.robber;
+    if (!r) return;
+    const gy = this.groundAt(r.x);
+    for (let i = 0; i < 16; i++) this.spawnDebris(r.x - 4 + Math.random() * 8, gy - Math.random() * ROBBER.height, ['#2b2d33', '#ffd23f', '#7a4b2a', '#3a3a44'][i % 4]);
+    this.robber = null;
+    this.robberWait = ROBBER.respawnMin + rnd(ROBBER.respawnMax - ROBBER.respawnMin + 1);
+    const p = by === 0 || by === 1 ? this.players[by] : null;
+    if (!p) { this.say('Der Räuber ist erwischt!', 'warn'); return; }
+    const gain = Math.min(r.loot + ROBBER.reward, Math.max(0, p.caps.money - p.money));
+    p.money += gain;
+    p.robbersCaught = (p.robbersCaught || 0) + 1;
+    this.say(gain > 0
+      ? `${p.name} hat den Räuber erwischt! ${gain} Taler wandern in die Schatzkammer.`
+      : `${p.name} hat den Räuber erwischt! Die Schatzkammer ist aber voll, die Beute verstreut sich im Tal.`, 'big');
   }
 
   /** Extension: loose earth above a crater slides down. */
@@ -1145,6 +1256,13 @@ export class Game {
 
   update(dt) {
     dt = Math.min(dt, 0.05);
+    const rb = this.robber;
+    if (rb) {
+      const d = rb.x - rb.shownX;
+      rb.walking = Math.abs(d) > 0.3;
+      rb.shownX = rb.walking ? rb.shownX + Math.sign(d) * Math.min(Math.abs(d), ROBBER.walkSpeed * dt) : rb.x;
+      if (rb.walking) rb.face = Math.sign(d);
+    }
     for (const pt of this.particles) {
       if (pt.smoke) {
         pt.vy *= Math.pow(0.5, dt);

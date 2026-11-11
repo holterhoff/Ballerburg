@@ -557,6 +557,32 @@ export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = fals
 
 /* ---------- scene ---------- */
 
+/** Extension "robber": four walking frames of the masked thief (pixel art made with Higgsfield). */
+const ROBBER_IMG = typeof Image !== 'undefined' ? new Image() : null;
+if (ROBBER_IMG) ROBBER_IMG.src = `${import.meta.env.BASE_URL}sprites/raeuber.png`;
+const ROBBER_FRAME = [35, 48];
+
+function drawRobber(c, game, t) {
+  const rb = game.robber;
+  if (!rb || !ROBBER_IMG?.complete || !ROBBER_IMG.naturalWidth) return;
+  const x = rb.shownX;
+  const gy = game.groundAt(x);
+  const w = ROBBER_FRAME[0] / RES, h = ROBBER_FRAME[1] / RES;
+  const frame = rb.walking ? Math.floor(t * 9) % 4 : 0;
+  const face = rb.face || rb.dir || 1;
+  c.save();
+  c.imageSmoothingEnabled = false;
+  c.translate(x, gy - h + 0.5);
+  if (face < 0) c.scale(-1, 1);
+  c.drawImage(ROBBER_IMG, frame * ROBBER_FRAME[0], 0, ROBBER_FRAME[0], ROBBER_FRAME[1], -w / 2, 0, w, h);
+  c.restore();
+  if (rb.loot > 0) {
+    // a gold glint over his head shows that he carries loot
+    c.fillStyle = Math.floor(t * 3) % 2 ? '#ffd23f' : '#fff3b0';
+    c.fillRect((x | 0) - 1, (gy - h - 3) | 0, 2, 2);
+  }
+}
+
 export function drawScene(c, game, r, view) {
   const t = view.time;
   if (game.terrainDirty) refreshTerrain(r, game);
@@ -592,6 +618,7 @@ export function drawScene(c, game, r, view) {
     const heat = game.options.extensions.overheat ? o.heat || 0 : 0;
     drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner], heat });
   }
+  drawRobber(c, game, t);
   const tint = SKIES[skyKey]?.tint;
   if (tint) {
     c.globalCompositeOperation = 'source-atop';
