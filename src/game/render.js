@@ -299,11 +299,7 @@ function drawCannon(c, o, pal, angle, highlight, heat = 0, t = 0) {
     const from = 9 - h * 3;
     const mx = pxv + dir * Math.cos(a) * from, my = pyv - Math.sin(a) * from;
     const on = h < 3 || Math.floor(t * 4) % 2 === 0;
-    // halo around the glowing part
-    c.fillStyle = glow[1];
-    for (let k = -2; k <= 2; k++) line(c, mx, my + k, ex, ey + k);
-    px(c, (ex | 0) - 2, (ey | 0) - 3, 5, 7);
-    px(c, (ex | 0) - 3, (ey | 0) - 2, 7, 5);
+    // only the barrel itself changes colour, no halo around it
     c.fillStyle = on ? glow[0] : glow[1];
     for (let k = -1; k <= 1; k++) line(c, mx, my + k, ex, ey + k);
     if (h >= 2) {
