@@ -19,6 +19,7 @@ Eigene Arbeiten dieser Fassung: Grafik, Burgen, Figuren- und Computernamen, Text
 - Eigene Burgen im selben Datenprinzip (Breite, Kanonenplätze, Thron, Windfahne, Kammern, Startwerte), aber mit eigenen Formen.
 - Eigene Sprite-Grafik und Farben. Treffer werden über die Rechtecke dieser Sprites geprüft statt über die Original-Bildpunkte.
 - Erweiterungen (abschaltbar, im Menü „Modus → Optionen“): weitere Bergformen, Erdrutsch, Einsturz.
+- Geschütze laufen heiß (von Anfang an eingeschaltet, abschaltbar unter „Modus → Optionen“): Nach dem 1., 2. und 3. Schuss in Folge glüht das Rohr gelb, orange und rot blinkend, im Spielfeld wie in der 3D-Ansicht des Zieldialogs. Der 4. Schuss in Folge sprengt das Geschütz; es muss neu gekauft werden. Eine Runde ohne Schuss kühlt es ganz ab. Der Computer feuert nie mit einem rot glühenden Geschütz.
 - Weitere eigene Regeln: Der klassische Berg wird zufällig 1- bis 1,8-mal so hoch gestreckt. Fördertürme graben sich eine Stufe in den Hang und halten zwei Treffer aus (der erste bricht das Rad). Anbauen setzt 8x4-Steine, die auf Mauer oder Boden fallen, und ist im Testmodus kostenlos (`freeBuilding`).
 
 ## Spielprinzip (wie im Original)

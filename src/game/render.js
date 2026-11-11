@@ -292,17 +292,34 @@ function drawCannon(c, o, pal, angle, highlight, heat = 0, t = 0) {
   for (let k = -1; k <= 1; k++) line(c, pxv, pyv + k, ex, ey + k);
   c.fillStyle = '#5b616b';
   line(c, pxv, pyv - 1, ex, ey - 1);
-  const glow = HEAT_COLORS[Math.min(heat, 3)];
+  const h = Math.min(heat, 3);
+  const glow = HEAT_COLORS[h];
   if (glow) {
-    // the front half of the barrel glows; red pulses
-    const mx = pxv + dir * Math.cos(a) * 5, my = pyv - Math.sin(a) * 5;
-    const on = heat < 3 || Math.floor(t * 4) % 2 === 0;
+    // yellow: front third of the barrel glows, orange: two thirds, red: all of it and it pulses
+    const from = 9 - h * 3;
+    const mx = pxv + dir * Math.cos(a) * from, my = pyv - Math.sin(a) * from;
+    const on = h < 3 || Math.floor(t * 4) % 2 === 0;
+    // halo around the glowing part
     c.fillStyle = glow[1];
-    px(c, (ex | 0) - 1, (ey | 0) - 2, 3, 5);
-    px(c, (ex | 0) - 2, (ey | 0) - 1, 5, 3);
+    for (let k = -2; k <= 2; k++) line(c, mx, my + k, ex, ey + k);
+    px(c, (ex | 0) - 2, (ey | 0) - 3, 5, 7);
+    px(c, (ex | 0) - 3, (ey | 0) - 2, 7, 5);
     c.fillStyle = on ? glow[0] : glow[1];
-    line(c, mx, my, ex, ey);
-    line(c, mx, my - 1, ex, ey - 1);
+    for (let k = -1; k <= 1; k++) line(c, mx, my + k, ex, ey + k);
+    if (h >= 2) {
+      // hot smoke curling up from the muzzle
+      for (let i = 0; i < h; i++) {
+        const ph = (t * 0.9 + i / h) % 1;
+        c.fillStyle = `rgba(120, 110, 105, ${0.55 * (1 - ph)})`;
+        px(c, (ex + Math.sin(ph * 6 + i) * 2) | 0, (ey - 3 - ph * 9) | 0, 2, 2);
+      }
+    }
+    if (h >= 3 && on) {
+      // sparks
+      c.fillStyle = '#ffe36b';
+      px(c, (ex + dir * 2) | 0, (ey - 2) | 0, 1, 1);
+      px(c, (ex - dir) | 0, (ey - 4) | 0, 1, 1);
+    }
   }
   if (highlight) {
     c.fillStyle = '#ffe9a8';

@@ -90,11 +90,11 @@ function loadPirateCannon(THREE, keep) {
  * The barrel follows the chosen angle; the powder keg grows with the charge.
  * three.js is loaded only when this mounts.
  */
-export default function Cannon3D({ angle, powder, side, onUnavailable }) {
+export default function Cannon3D({ angle, powder, heat = 0, side, onUnavailable }) {
   const ref = useRef(null);
-  const state = useRef({ angle, powder });
+  const state = useRef({ angle, powder, heat });
   const [ready, setReady] = useState(false);
-  state.current = { angle, powder };
+  state.current = { angle, powder, heat };
 
   useEffect(() => {
     let disposed = false;
@@ -239,6 +239,10 @@ export default function Cannon3D({ angle, powder, side, onUnavailable }) {
         simpleBarrel.add(trunnion);
         gun.rotation.y = side === 0 ? -0.3 : Math.PI + 0.3;
 
+        // Overheating: the barrel glows yellow, orange or pulsing red (barrel materials only).
+        const HEAT_GLOW = [null, [0xffc020, 0.35], [0xff6a10, 0.6], [0xff2008, 0.95]];
+        const glowMats = [bronze];
+
         // Pirate cannon (cast-iron barrel on a wooden truck carriage), made with Higgsfield / Meshy.
         // The GLBs lie along x with the muzzle at -x; they are turned so the muzzle points at +x.
         loadPirateCannon(THREE, keep).then((parts) => {
@@ -249,6 +253,7 @@ export default function Cannon3D({ angle, powder, side, onUnavailable }) {
           carriage.position.set(-0.15, 0, 0);
           gun.add(carriage);
           ironBarrel.position.set(0.1, 0, 0);
+          ironBarrel.traverse((o) => { if (o.isMesh) glowMats.push(...[].concat(o.material)); });
           pivot.add(ironBarrel);
           pivot.position.set(0.05, CARRIAGE_HEIGHT * 0.86, 0);
         });
@@ -270,7 +275,14 @@ export default function Cannon3D({ angle, powder, side, onUnavailable }) {
         let shown = state.current.angle;
         const look0 = new THREE.Vector3(0.2 * dir, 1.1, 0);
         renderer.setAnimationLoop((t) => {
-          const { angle: target, powder: pw } = state.current;
+          const { angle: target, powder: pw, heat: ht } = state.current;
+          const hg = HEAT_GLOW[Math.min(ht || 0, 3)];
+          const pulse = ht >= 3 ? 0.55 + 0.45 * Math.sin(t / 120) : 1;
+          for (const m of glowMats) {
+            if (!m.emissive) continue;
+            if (hg) { m.emissive.setHex(hg[0]); m.emissiveIntensity = hg[1] * pulse; }
+            else m.emissiveIntensity = 0;
+          }
           shown += (target - shown) * 0.2;
           pivot.rotation.z = (shown * Math.PI) / 180;
           const s = 0.55 + (pw / 20) * 0.75;

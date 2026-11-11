@@ -95,8 +95,8 @@ export const DEFAULT_OPTIONS = {
   freeBuilding: false,
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
-  /** Extensions, all off by default so the game plays like the original. */
-  extensions: { landslides: false, falling: false, overheat: false },
+  /** Extensions. Landslides and falling are off so the game plays like the original; overheating is on. */
+  extensions: { landslides: false, falling: false, overheat: true },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */

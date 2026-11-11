@@ -98,7 +98,7 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
         {no3d ? (
           <canvas ref={ref} width={240} height={110} className="aim-preview" aria-label={`Geschütz bei ${angle} Grad`} role="img" />
         ) : (
-          <Cannon3D angle={angle} powder={powder} side={cannon.owner} onUnavailable={() => setNo3d(true)} />
+          <Cannon3D angle={angle} powder={powder} heat={heat} side={cannon.owner} onUnavailable={() => setNo3d(true)} />
         )}
       </div>
       <div className="gem-actions">
@@ -360,7 +360,7 @@ const RULES = [
     'Treffer in Lagerkammern kosten bis zu 200 Gold, das ganze Pulver oder zwei Kugeln. Jeder Einschlag in einer Burg kann Einwohner kosten.',
   ]],
   ['Erweiterungen', [
-    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Sie sind alle aus und lassen sich unter Modus → Optionen einschalten.',
+    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Unter Modus → Optionen lassen sie sich ein- und ausschalten. Nur das Heißlaufen ist von Anfang an eingeschaltet.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
