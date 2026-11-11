@@ -9,9 +9,15 @@ import {
   RulesDialog, ScoresDialog, AboutDialog, GameOverDialog,
 } from './components/Dialogs.jsx';
 
+/**
+ * Default match: Klausenburg against Mittelturm, the computer as "Vogt Veit" who goes for the king.
+ * In computer tournaments this pairing is the fairest of the original castles in both game modes
+ * (about 45 : 55, almost every game ends with a hit on the king); the old default 1 against 2
+ * was won by castle 2 in up to 9 of 10 games.
+ */
 const DEFAULT_SIDES = [
-  { type: 'human', name: 'Spieler 1', strategy: 2, strength: 2, castle: 'original1' },
-  { type: 'ai', name: 'Spieler 2', strategy: 2, strength: 2, castle: 'original2' },
+  { type: 'human', name: 'Spieler 1', strategy: 1, strength: 2, castle: 'original5' },
+  { type: 'ai', name: 'Spieler 2', strategy: 1, strength: 2, castle: 'original6' },
 ];
 
 function playersFrom(sides) {

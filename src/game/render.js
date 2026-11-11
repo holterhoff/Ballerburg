@@ -469,7 +469,23 @@ function drawVane(c, x, y, pal, wind, t) {
   }
 }
 
-function drawMine(c, x, y, t, damage = 0) {
+function drawMine(c, x, y, t, damage = 0, lame = 0) {
+  drawMineBody(c, x, y, lame ? 0 : t, damage);
+  if (!lame) return;
+  // Extension "spy": a blown-up tower stands black and still, smoke rises, a tally shows the rounds left
+  c.fillStyle = 'rgba(20, 14, 10, 0.4)';
+  c.fillRect(x + 1, y + 8, 14, 16);
+  for (let i = 0; i < 3; i++) {
+    const p = (t * 0.5 + i / 3) % 1;
+    c.fillStyle = `rgba(70, 64, 66, ${0.65 * (1 - p)})`;
+    c.fillRect((x + 6 + Math.sin(t * 2 + i * 2) * 2 + p * 3) | 0, (y - 1 - p * 12) | 0, 2 + Math.round(p * 2), 2 + Math.round(p * 2));
+  }
+  if (Math.floor(t * 5) % 3 === 0) { c.fillStyle = '#ff8a2a'; c.fillRect(x + 5, y + 18, 1, 1); c.fillRect(x + 10, y + 13, 1, 1); }
+  c.fillStyle = '#ff5a3a';
+  for (let i = 0; i < lame; i++) c.fillRect(x + 2 + i * 3, y + 26, 2, 1);
+}
+
+function drawMineBody(c, x, y, t, damage = 0) {
   c.fillStyle = '#7a5230';
   line(c, x + 1, y + 23, x + 7, y + 3);
   line(c, x + 14, y + 23, x + 8, y + 3);
@@ -602,7 +618,7 @@ export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = fals
     case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
     case 'gold': return stock ? drawChamber(c, o, 'gold', stock.money, t) : drawGold(c, x, y, t);
     case 'vane': return drawVane(c, x, y, pal, wind, t);
-    case 'mine': return drawMine(c, x, y, t, o.damage || 0);
+    case 'mine': return drawMine(c, x, y, t, o.damage || 0, o.lame || 0);
   }
 }
 
@@ -631,6 +647,37 @@ function drawRobber(c, game, t) {
     // a gold glint over his head shows that he carries loot
     c.fillStyle = Math.floor(t * 3) % 2 ? '#ffd23f' : '#fff3b0';
     c.fillRect((x | 0) - 1, (gy - h - 3) | 0, 2, 2);
+  }
+}
+
+/** Extension "spy": four walking frames, one kneeling with the bomb, one standing (pixel art made with Higgsfield). */
+const SPY_IMG = typeof Image !== 'undefined' ? new Image() : null;
+if (SPY_IMG) SPY_IMG.src = `${import.meta.env.BASE_URL}sprites/spion.png`;
+const SPY_FRAME = [42, 48];
+
+function drawSpies(c, game, t) {
+  if (!game.spies?.length || !SPY_IMG?.complete || !SPY_IMG.naturalWidth) return;
+  const w = SPY_FRAME[0] / RES, h = SPY_FRAME[1] / RES;
+  for (const s of game.spies) {
+    const x = s.shownX;
+    const gy = game.spyGround(s, x);
+    const planting = s.state === 'plant' && !s.walking;
+    const frame = planting ? 4 : s.walking ? Math.floor(t * 10) % 4 : 5;
+    const face = planting ? (s.owner === 0 ? 1 : -1) : s.face || s.dir || 1;
+    c.save();
+    c.imageSmoothingEnabled = false;
+    c.translate(x, gy - h + 0.5);
+    if (face < 0) c.scale(-1, 1);
+    c.drawImage(SPY_IMG, frame * SPY_FRAME[0], 0, SPY_FRAME[0], SPY_FRAME[1], -w / 2, 0, w, h);
+    c.restore();
+    // a small flag in the owner's colour over his hat says whose spy he is
+    c.fillStyle = SIDE_COLORS[s.owner].main;
+    c.fillRect((x | 0) - 1, (gy - h - 3) | 0, 3, 2);
+    if (planting && Math.floor(t * 8) % 2) {
+      // the burning fuse sparkles
+      c.fillStyle = '#fff3a6';
+      c.fillRect((x + face * 4) | 0, (gy - 4) | 0, 1, 1);
+    }
   }
 }
 
@@ -670,6 +717,7 @@ export function drawScene(c, game, r, view) {
     drawObject(c, o, { wind: game.wind, t, angle, highlight: isSel && blink && !game.hasFired, stock: game.players[o.owner], heat });
   }
   drawRobber(c, game, t);
+  drawSpies(c, game, t);
   const tint = SKIES[skyKey]?.tint;
   if (tint) {
     c.globalCompositeOperation = 'source-atop';

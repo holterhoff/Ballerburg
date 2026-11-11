@@ -42,6 +42,24 @@ export const ROBBER = {
   blastPad: 12, // an impact this close scares him off and he drops his sack
   walkSpeed: 26, // pixels per second while he walks on screen
 };
+/**
+ * Extension "spy": a castle can hire a spy. He walks over the mountain to the enemy castle and
+ * blows up its shaft towers, so they bring no gold for a few rounds. Without towers he goes for
+ * the powder store. A castle guard cannot stop him; only a ball can.
+ */
+export const SPY = {
+  width: 10, height: 16,
+  stepMin: 45, stepMax: 70, // pixels per move, faster than the robber
+  lameMin: 3, lameMax: 5, // own rounds a sabotaged tower brings no gold
+  acts: 2, // sabotage acts per spy, then he flees home
+  fuse: 1, // moves between laying the charge and the blast
+  powderShare: 50, // per cent of the powder store burnt when there is no tower
+  bounty: 100, // taler for whoever shoots an enemy spy
+  flyPad: 3, blastPad: 8,
+  aiChance: 20, // per cent: the computer shoots at a spy coming for it (twice as often while he lays the charge)
+  aiBuy: 40, // per cent per move: the computer hires a spy against a castle with towers
+  walkSpeed: 34,
+};
 import { recordResult } from './scores.js';
 
 /** Original: anbau() lets you lay 20 bricks per purchase. */
@@ -59,11 +77,13 @@ export const MARKET = [
   { key: 'balls', label: '2 Kugeln' },
   /** Extension "robber": a guard in front of the wall catches the robber once. */
   { key: 'guard', label: 'Burgwache' },
+  /** Extension "spy": sabotages the enemy's shaft towers. */
+  { key: 'spy', label: 'Spion' },
 ];
-const START_PRICES = [200, 500, 400, 150, 50, 50, 150];
-const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110];
-const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200];
-const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20];
+const START_PRICES = [200, 500, 400, 150, 50, 50, 150, 300];
+const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110, 260];
+const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200, 380];
+const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20, 30];
 const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
@@ -115,7 +135,7 @@ export const DEFAULT_OPTIONS = {
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Extensions, all off by default: the standard game plays like the original. */
-  extensions: { landslides: false, falling: false, overheat: false, robber: false },
+  extensions: { landslides: false, falling: false, overheat: false, robber: false, spy: false },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -126,8 +146,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** The two game modes in the menu: the original rules, or every extension switched on. */
 export const MODES = {
-  original: { landslides: false, falling: false, overheat: false, robber: false },
-  erweitert: { landslides: true, falling: true, overheat: true, robber: true },
+  original: { landslides: false, falling: false, overheat: false, robber: false, spy: false },
+  erweitert: { landslides: true, falling: true, overheat: true, robber: true, spy: true },
 };
 export const modeOf = (ext) => (Object.values(ext || {}).some(Boolean) ? 'erweitert' : 'original');
 
@@ -216,6 +236,9 @@ export class Game {
     /** Extension "robber". */
     this.robber = null;
     this.robberWait = ROBBER.firstMoves;
+    /** Extension "spy": at most one spy per side. */
+    this.spies = [];
+    for (const pl of this.players) pl.startWealth = Math.max(1, this.wealth(pl));
     this.terrainDirty = true;
     this.say('Eine neue Fehde beginnt.', 'big');
     this.startMove();
@@ -345,6 +368,7 @@ export class Game {
       return;
     }
     if (this.options.extensions.robber) this.robberMove();
+    if (this.options.extensions.spy) this.spyMove();
     if (this.options.maxRounds && Math.floor(this.move / 2) >= this.options.maxRounds) {
       const [a, b] = this.players.map((pl) => this.wealth(pl));
       const winner = b < a ? 0 : 1;
@@ -361,7 +385,11 @@ export class Game {
     p.money += idiv(p.pop * (j > 65 ? 130 - j : j), 150 - rnd(50));
     const popBefore = p.pop;
     p.pop = idiv(p.pop * (95 + rnd(11)), 100) + idiv((21 - j + rnd(9)) * (8 + rnd(5)), 20);
-    for (let i = 0; i < this.objectsOf(p.idx, 'mine').length; i++) p.money += 40 + rnd(31);
+    for (const m of this.objectsOf(p.idx, 'mine')) {
+      // Extension "spy": a sabotaged tower brings nothing until it is repaired
+      if (m.lame > 0) { m.lame--; if (!m.lame) this.say(`Der Förderturm von ${p.name} ist repariert und fördert wieder.`); continue; }
+      p.money += 40 + rnd(31);
+    }
     // original: drw_gpk() caps money to what the chamber holds.
     // Neufassung: gold from a robber's sack may lie above the cap; only new income is capped.
     p.money = Math.min(p.money, Math.max(p.caps.money, moneyBefore));
@@ -499,6 +527,13 @@ export class Game {
       this.endFlight(pr);
       return;
     }
+    const spy = this.spyAt(pr.x, pr.y, SPY.flyPad);
+    if (spy) {
+      this.endFlight(pr);
+      this.flashes.push({ x: pr.x, y: pr.y, r: 12, t: 0, life: 0.4 });
+      this.catchSpy(spy, pr.owner);
+      return;
+    }
     if (this.robberAt(pr.x, pr.y, ROBBER.flyPad)) {
       this.endFlight(pr);
       this.flashes.push({ x: pr.x, y: pr.y, r: 12, t: 0, life: 0.4 });
@@ -553,6 +588,7 @@ export class Game {
         }
       }
       if (this.robberAt(x, y, ROBBER.blastPad)) this.catchRobber(by);
+      for (let s = this.spyAt(x, y, SPY.blastPad); s; s = this.spyAt(x, y, SPY.blastPad)) this.catchSpy(s, by);
       if (stop || this.phase === 'over') break;
       x += vx;
       y -= vy;
@@ -746,14 +782,23 @@ export class Game {
 
   /** Is this side clearly weaker than the other one (by the wealth used at the round limit)? */
   isWeaker(side) {
-    const me = this.wealth(this.players[side]), other = this.wealth(this.players[1 - side]);
+    const me = this.standing(side), other = this.standing(1 - side);
     return me < other * ROBBER.weakRatio;
+  }
+
+  /**
+   * How well a side is doing compared with its own start (the castles start with different
+   * gold to balance their strength, so raw wealth would always point at the same castle).
+   */
+  standing(side) {
+    const p = this.players[side];
+    if (!p.startWealth) p.startWealth = Math.max(1, this.wealth(p));
+    return this.wealth(p) / p.startWealth;
   }
 
   /** The robber prefers the stronger side: 85 % when one side is clearly ahead, else 60 %. */
   robberTarget() {
-    const [a, b] = this.players.map((pl) => this.wealth(pl));
-    const strong = a >= b ? 0 : 1;
+    const strong = this.standing(0) >= this.standing(1) ? 0 : 1;
     const clear = this.isWeaker(1 - strong);
     return rnd(100) < (clear ? 85 : 60) ? strong : 1 - strong;
   }
@@ -803,6 +848,116 @@ export class Game {
     this.say(r.loot > 0
       ? `${p.name} hat den Räuber erwischt und bekommt seinen ganzen Geldsack: ${r.loot} Taler!`
       : `${p.name} hat den Räuber erwischt! Sein Sack war noch leer.`, 'big');
+  }
+
+  /* ======================= Extension "spy" ======================= */
+
+  /** The ground under a spy; while he kneels at a tower that is the tower's foot, even in a deep notch. */
+  spyGround(s, x = s.x) {
+    return s.state === 'plant' && s.footY && Math.abs(x - s.x) < 0.5 ? s.footY : this.groundAt(x);
+  }
+
+  spyAt(x, y, pad = 0) {
+    for (const s of this.spies) {
+      const gy = this.spyGround(s);
+      if (x >= s.x - SPY.width / 2 - pad && x <= s.x + SPY.width / 2 + pad && y >= gy - SPY.height - pad && y <= gy + pad) return s;
+    }
+    return null;
+  }
+
+  /** The enemy tower a spy goes for next: a working one, the nearest first. */
+  spyTarget(s) {
+    const foe = 1 - s.owner;
+    const towers = this.objectsOf(foe, 'mine').filter((m) => !(m.lame > 0));
+    if (!towers.length) return null;
+    towers.sort((a, b) => Math.abs(a.x + a.w / 2 - s.x) - Math.abs(b.x + b.w / 2 - s.x));
+    return towers[0];
+  }
+
+  /** He kneels at the foot of the tower, on the side he comes from, so the bomb lies under its legs. */
+  spySpot(t, owner) {
+    return Math.round(owner === 0 ? t.x + 3 : t.x + t.w - 3);
+  }
+
+  /** After each move every spy walks on, lays his charge, lets it blow up or flees home. */
+  spyMove() {
+    for (const s of [...this.spies]) {
+      const owner = this.players[s.owner], foe = this.players[1 - s.owner];
+      const step = SPY.stepMin + rnd(SPY.stepMax - SPY.stepMin);
+      if (s.state === 'plant') {
+        if (--s.fuse > 0) continue;
+        this.spyBlast(s);
+        s.acts++;
+        const next = s.acts < SPY.acts ? this.spyTarget(s) : null;
+        s.footY = null;
+        if (next) { s.state = 'walk'; s.targetId = next.id; }
+        else {
+          s.state = 'flee';
+          this.say(`Der Spion von ${owner.name} hat seine Arbeit getan und schleicht nach Hause.`);
+        }
+        continue;
+      }
+      let goal;
+      if (s.state === 'flee') goal = this.robberGoal(s.owner);
+      else {
+        let t = this.obj(s.targetId);
+        if (!t || !t.alive || t.lame > 0) { t = this.spyTarget(s); s.targetId = t ? t.id : null; }
+        goal = t ? this.spySpot(t, s.owner) : this.robberGoal(foe.idx);
+      }
+      s.dir = goal > s.x ? 1 : -1;
+      s.x = Math.abs(goal - s.x) <= step ? goal : s.x + s.dir * step;
+      if (s.x !== goal) continue;
+      if (s.state === 'flee') {
+        this.spies = this.spies.filter((o) => o !== s);
+        this.say(`Der Spion von ${owner.name} ist heil zurück und taucht unter.`);
+        continue;
+      }
+      s.state = 'plant';
+      s.fuse = SPY.fuse;
+      const t = this.obj(s.targetId);
+      s.footY = t ? t.y + t.h : null;
+      this.say(t
+        ? `Der Spion von ${owner.name} legt eine Sprengladung an den Förderturm von ${foe.name}!`
+        : `Der Spion von ${owner.name} schleicht an die Pulverkammer von ${foe.name} und legt eine Lunte!`, 'warn');
+    }
+  }
+
+  /** The charge goes off: a tower stands still for a few rounds, or the powder store burns. */
+  spyBlast(s) {
+    const owner = this.players[s.owner], foe = this.players[1 - s.owner];
+    const t = this.obj(s.targetId);
+    sound.explosion(90);
+    if (t && t.alive && t.type === 'mine') {
+      t.lame = SPY.lameMin + rnd(SPY.lameMax - SPY.lameMin + 1);
+      this.chamberBlast({ x: t.x, y: t.y + 6, w: t.w, h: t.h - 6 }, 'powder', 4);
+      this.flashes.push({ x: t.x + t.w / 2, y: t.y + t.h - 4, r: 22, t: 0, life: 0.6 });
+      this.shake = Math.min(8, this.shake + 3);
+      owner.sabotages = (owner.sabotages || 0) + 1;
+      this.say(`Rumms! Der Spion von ${owner.name} hat den Förderturm von ${foe.name} gesprengt. ${t.lame} Runden lang fördert er nichts.`, 'hit');
+      return;
+    }
+    const store = this.objectsOf(foe.idx, 'powder')[0];
+    const lost = Math.ceil((foe.powder * SPY.powderShare) / 100);
+    foe.powder -= lost;
+    if (store) this.chamberBlast(store, 'powder', 4 + Math.ceil(lost / 30) * 4);
+    owner.sabotages = (owner.sabotages || 0) + 1;
+    this.say(lost > 0
+      ? `Rumms! Der Spion von ${owner.name} sprengt die Pulverkammer von ${foe.name}: ${lost} Pulver verbrannt.`
+      : `Die Lunte des Spions von ${owner.name} verpufft, bei ${foe.name} war kein Pulver mehr.`, 'hit');
+  }
+
+  /** A ball got a spy. Whoever shoots an enemy spy gets a bounty. */
+  catchSpy(s, by) {
+    this.spies = this.spies.filter((o) => o !== s);
+    const gy = this.spyGround(s);
+    for (let i = 0; i < 14; i++) this.spawnDebris(s.x - 4 + Math.random() * 8, gy - Math.random() * SPY.height, ['#2f4a2c', '#1d1b22', '#a3261b', '#7a4b2a'][i % 4]);
+    const owner = this.players[s.owner];
+    const p = by === 0 || by === 1 ? this.players[by] : null;
+    if (p && by !== s.owner) {
+      p.money += SPY.bounty;
+      p.spiesCaught = (p.spiesCaught || 0) + 1;
+      this.say(`${p.name} hat den Spion von ${owner.name} erwischt und kassiert ${SPY.bounty} Taler Kopfgeld!`, 'big');
+    } else this.say(`Der Spion von ${owner.name} wurde von der eigenen Kugel getroffen.`, 'hit');
   }
 
   /** Extension: loose earth above a crater slides down. */
@@ -927,6 +1082,7 @@ export class Game {
       case 'powder': return p.powder < p.caps.powder;
       case 'balls': return p.balls < p.caps.balls;
       case 'guard': return this.options.extensions.robber && !this.objectsOf(p.idx, 'guard').length && !!this.guardSpot(p);
+      case 'spy': return this.options.extensions.spy && !this.spies.some((s) => s.owner === p.idx);
       default: return false;
     }
   }
@@ -965,6 +1121,15 @@ export class Game {
         const s = this.guardSpot(p);
         this.addObject('guard', p.idx, s.x, s.y);
         this.say(`${p.name} stellt eine Burgwache vor das Tor.`);
+        break;
+      }
+      case 'spy': {
+        const x = this.robberGoal(p.idx);
+        const s = { owner: p.idx, x, shownX: x, dir: p.idx ? -1 : 1, state: 'walk', acts: 0, fuse: 0, targetId: null };
+        const t = this.spyTarget(s);
+        s.targetId = t ? t.id : null;
+        this.spies.push(s);
+        this.say(`${p.name} schickt einen Spion über den Berg zu ${this.players[1 - p.idx].name}.`, 'warn');
         break;
       }
     }
@@ -1183,6 +1348,9 @@ export class Game {
     if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
     // Extension "robber": hire a guard when the robber is heading this way and there is gold to lose
     if (this.robber && this.robber.target === n && p.money >= this.prices.guard + 100 && this.canBuy('guard', p)) this.buy('guard');
+    // Extension "spy": against a castle with working towers the computer now and then hires a spy
+    if (this.options.extensions.spy && this.objectsOf(foe.idx, 'mine').some((m) => !(m.lame > 0))
+        && p.money >= this.prices.spy + 20 && this.canBuy('spy', p) && rnd(100) < SPY.aiBuy) this.buy('spy');
 
     // Extension: the computer never fires a red-hot cannon; with none left it sits out
     const cannons = this.objectsOf(n, 'cannon').filter((c) => !this.options.extensions.overheat || (c.heat || 0) < HEAT_MAX);
@@ -1225,6 +1393,9 @@ export class Game {
       default: break;
     }
     if (robberShot) [zx, zy] = [rb.x, this.groundAt(rb.x) - 6];
+    // Extension "spy": an enemy spy on the way, or kneeling at a tower, is worth a ball
+    const sp = this.spies.find((s) => s.owner !== n && s.state !== 'flee');
+    if (sp && rnd(100) < (sp.state === 'plant' ? SPY.aiChance * 2 : SPY.aiChance)) [zx, zy] = [sp.x, this.spyGround(sp) - 6];
 
     // Original: the strength decides how far the computer misses (cx in 0..3).
     const spread = 49 - (p.strength - 1) * 16;
@@ -1321,6 +1492,10 @@ export class Game {
       for (const o of this.objects) if (o.type === 'guard') o.alive = false;
     }
     if (!this.options.extensions.overheat) for (const o of this.objects) if (o.type === 'cannon') o.heat = 0;
+    if (!this.options.extensions.spy) {
+      this.spies = [];
+      for (const o of this.objects) if (o.type === 'mine') o.lame = 0;
+    }
     this.emit();
   }
 
@@ -1334,6 +1509,12 @@ export class Game {
       rb.walking = Math.abs(d) > 0.3;
       rb.shownX = rb.walking ? rb.shownX + Math.sign(d) * Math.min(Math.abs(d), ROBBER.walkSpeed * dt) : rb.x;
       if (rb.walking) rb.face = Math.sign(d);
+    }
+    for (const s of this.spies) {
+      const d = s.x - s.shownX;
+      s.walking = Math.abs(d) > 0.3;
+      s.shownX = s.walking ? s.shownX + Math.sign(d) * Math.min(Math.abs(d), SPY.walkSpeed * dt) : s.x;
+      if (s.walking) s.face = Math.sign(d);
     }
     for (const pt of this.particles) {
       if (pt.smoke) {

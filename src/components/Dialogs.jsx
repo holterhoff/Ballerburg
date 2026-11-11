@@ -142,7 +142,7 @@ export function MarketDialog({ game, onClose }) {
       <section className="gem-box">
         <h3>Markt:</h3>
         <div className="ledger">
-          {MARKET.filter((m) => m.key !== 'guard' || game.options.extensions.robber).map((m) => (
+          {MARKET.filter((m) => (m.key !== 'guard' || game.options.extensions.robber) && (m.key !== 'spy' || game.options.extensions.spy)).map((m) => (
             <button
               key={m.key}
               className="ledger-row buy"
@@ -333,6 +333,7 @@ export function OptionsDialog({ options, onApply, onCancel }) {
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.falling} onChange={(e) => ext('falling', e.target.checked)} /> Burgteile ohne Halt stürzen ab</label>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.overheat} onChange={(e) => ext('overheat', e.target.checked)} /> Geschütze laufen heiß (der 4. Schuss in Folge sprengt das Geschütz)</label>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.robber} onChange={(e) => ext('robber', e.target.checked)} /> Ein Räuber zieht durchs Tal und stiehlt Gold</label>
+        <label className="gem-check-row"><input type="checkbox" checked={!!o.extensions.spy} onChange={(e) => ext('spy', e.target.checked)} /> Spione lassen sich anheuern und sprengen Fördertürme</label>
       </fieldset>
       <div className="gem-actions">
         <Btn onClick={onCancel}>Abbruch</Btn>
@@ -366,6 +367,7 @@ const RULES = [
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
     'Der Räuber: Ab der zweiten Runde zieht ein vermummter Räuber zwischen den Burgen hin und her. Nach jedem Zug geht er ein Stück weiter, meistens zu der Burg, die gerade besser dasteht. Dort stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler, und steckt es in seinen Sack. Wer deutlich zurückliegt, verliert höchstens ein paar Taler, und meist lässt er diese Burg ganz in Ruhe. Wer ihn mit einer Kugel trifft oder nah neben ihm einschlägt, bekommt den ganzen Geldsack. Sicherer ist eine Burgwache aus dem Markt: Sie steht vor dem Tor, fängt den Räuber, sobald er ankommt, und die Burg bekommt seinen ganzen Sack. Danach führt die Wache ihn ab und ist weg. Eine Wache kann abgeschossen werden. Nach einer Runde Pause kommt immer wieder ein neuer Räuber.',
+    'Der Spion: Im Markt lässt sich ein Spion anheuern (um 300 Taler, einer pro Burg). Er läuft von der eigenen Mauer über den Berg zur feindlichen Burg und sucht sich dort einen arbeitenden Förderturm. Angekommen legt er eine Sprengladung, nach dem nächsten Zug fliegt sie hoch: Der Turm bringt 3 bis 5 eigene Runden lang kein Gold, dann ist er repariert. Danach nimmt er sich einen zweiten Turm vor und schleicht anschließend nach Hause. Hat der Gegner keinen Förderturm, sprengt er stattdessen die Hälfte der Pulverkammer. Eine Burgwache hält ihn nicht auf. Wer einen feindlichen Spion mit einer Kugel trifft, bekommt 100 Taler Kopfgeld.',
   ]],
 ];
 
