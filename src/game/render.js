@@ -295,9 +295,8 @@ function drawCannon(c, o, pal, angle, highlight, heat = 0, t = 0) {
   const h = Math.min(heat, 3);
   const glow = HEAT_COLORS[h];
   if (glow) {
-    // yellow: front third of the barrel glows, orange: two thirds, red: all of it and it pulses
-    const from = 9 - h * 3;
-    const mx = pxv + dir * Math.cos(a) * from, my = pyv - Math.sin(a) * from;
+    // the whole barrel glows yellow, orange or red; red also pulses
+    const mx = pxv, my = pyv;
     const on = h < 3 || Math.floor(t * 4) % 2 === 0;
     // only the barrel itself changes colour, no halo around it
     c.fillStyle = on ? glow[0] : glow[1];

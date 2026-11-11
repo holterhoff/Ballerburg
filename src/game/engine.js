@@ -26,15 +26,14 @@ const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
 /** Extension "overheat": a cannon survives this many shots in a row, the next one blows it up. */
 export const HEAT_MAX = 3;
 /**
- * Extension "robber": a masked thief roams the valley. After every move he walks a random
- * distance towards the castle he has picked; at its wall he steals part of the treasury.
- * A ball that hits him gives the shooter the loot back plus a reward.
+ * Extension "robber": a masked thief walks back and forth between the castles. After every move
+ * he walks a random distance; at a castle wall he steals part of the treasury into his sack and
+ * then heads for the other castle. Whoever shoots him gets the whole sack.
  */
 export const ROBBER = {
   width: 12, height: 16,
   stepMin: 22, stepMax: 55, // pixels per move
   stealMin: 15, stealMax: 30, stealCap: 250, // per cent of the treasury, at most stealCap
-  reward: 50,
   firstMoves: 2, respawnMin: 4, respawnMax: 8, // moves until he (re)appears
   walkSpeed: 26, // pixels per second while he walks on screen
 };
@@ -349,7 +348,9 @@ export class Game {
     const popBefore = p.pop;
     p.pop = idiv(p.pop * (95 + rnd(11)), 100) + idiv((21 - j + rnd(9)) * (8 + rnd(5)), 20);
     for (let i = 0; i < this.objectsOf(p.idx, 'mine').length; i++) p.money += 40 + rnd(31);
-    p.money = Math.min(p.money, p.caps.money); // original: drw_gpk() caps money to what the chamber holds
+    // original: drw_gpk() caps money to what the chamber holds.
+    // Neufassung: gold from a robber's sack may lie above the cap; only new income is capped.
+    p.money = Math.min(p.money, Math.max(p.caps.money, moneyBefore));
     p.lastIncome = p.money - moneyBefore;
     p.popChange = p.pop - popBefore;
     MARKET.forEach((m, k) => {
@@ -697,28 +698,11 @@ export class Game {
       if (--this.robberWait > 0) return;
       const target = rnd(2);
       const x = W / 2 + rnd(121) - 60;
-      this.robber = { x, shownX: x, target, dir: target ? 1 : -1, loot: 0, rest: 0 };
+      this.robber = { x, shownX: x, target, dir: target ? 1 : -1, loot: 0 };
       this.say(`Ein Räuber schleicht durchs Tal! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`, 'warn');
       return;
     }
     const step = ROBBER.stepMin + rnd(ROBBER.stepMax - ROBBER.stepMin);
-    if (r.rest > 0) {
-      // after a robbery he first walks back towards the middle
-      r.rest--;
-      r.dir = r.x < W / 2 ? 1 : -1;
-      r.x = clamp(r.x + r.dir * step, this.robberGoal(0), this.robberGoal(1));
-      if (r.rest === 0) {
-        r.target = rnd(2);
-        this.say(`Der Räuber hat jetzt die Burg von ${this.players[r.target].name} im Auge.`);
-      }
-      return;
-    }
-    if (rnd(5) === 0) {
-      // now and then he changes his mind
-      const t = rnd(2);
-      if (t !== r.target) this.say(`Der Räuber macht kehrt und schleicht zur Burg von ${this.players[t].name}.`);
-      r.target = t;
-    }
     const goal = this.robberGoal(r.target);
     r.dir = goal > r.x ? 1 : -1;
     r.x = Math.abs(goal - r.x) <= step ? goal : r.x + r.dir * step;
@@ -731,14 +715,15 @@ export class Game {
     const amount = Math.min(p.money, ROBBER.stealCap, Math.max(want, 20));
     p.money -= amount;
     r.loot += amount;
-    r.rest = 2;
     p.robbed = (p.robbed || 0) + amount;
+    // and off he goes to the other castle
+    r.target = 1 - p.idx;
     this.say(amount > 0
-      ? `Der Räuber hat ${amount} Taler aus der Schatzkammer von ${p.name} gestohlen!`
-      : `Der Räuber findet bei ${p.name} keinen Taler und zieht fluchend ab.`, 'warn');
+      ? `Der Räuber hat ${amount} Taler aus der Schatzkammer von ${p.name} gestohlen! In seinem Sack sind jetzt ${r.loot} Taler.`
+      : `Der Räuber findet bei ${p.name} keinen Taler und zieht fluchend weiter.`, 'warn');
   }
 
-  /** A ball got the robber: the shooter gets the loot back plus a reward. */
+  /** A ball got the robber: the shooter gets his whole sack, even beyond what the treasury holds. */
   catchRobber(by) {
     const r = this.robber;
     if (!r) return;
@@ -748,12 +733,11 @@ export class Game {
     this.robberWait = ROBBER.respawnMin + rnd(ROBBER.respawnMax - ROBBER.respawnMin + 1);
     const p = by === 0 || by === 1 ? this.players[by] : null;
     if (!p) { this.say('Der Räuber ist erwischt!', 'warn'); return; }
-    const gain = Math.min(r.loot + ROBBER.reward, Math.max(0, p.caps.money - p.money));
-    p.money += gain;
+    p.money += r.loot;
     p.robbersCaught = (p.robbersCaught || 0) + 1;
-    this.say(gain > 0
-      ? `${p.name} hat den Räuber erwischt! ${gain} Taler wandern in die Schatzkammer.`
-      : `${p.name} hat den Räuber erwischt! Die Schatzkammer ist aber voll, die Beute verstreut sich im Tal.`, 'big');
+    this.say(r.loot > 0
+      ? `${p.name} hat den Räuber erwischt und bekommt seinen ganzen Geldsack: ${r.loot} Taler!`
+      : `${p.name} hat den Räuber erwischt! Sein Sack war noch leer.`, 'big');
   }
 
   /** Extension: loose earth above a crater slides down. */

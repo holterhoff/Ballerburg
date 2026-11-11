@@ -365,7 +365,7 @@ const RULES = [
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
-    'Der Räuber: Ab der zweiten Runde schleicht ein vermummter Räuber durchs Tal. Nach jedem Zug geht er ein Stück auf die Burg zu, die er sich ausgesucht hat, und ab und zu ändert er seine Meinung. Erreicht er die Burgmauer, stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler. Triffst du ihn mit einer Kugel, bekommst du seine ganze Beute und 50 Taler Belohnung. Danach dauert es einige Züge, bis der nächste Räuber kommt.',
+    'Der Räuber: Ab der zweiten Runde zieht ein vermummter Räuber zwischen den Burgen hin und her. Nach jedem Zug geht er ein Stück weiter. An jeder Burgmauer stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler, steckt es in seinen Sack und macht sich auf zur anderen Burg. Wer ihn mit einer Kugel trifft, bekommt den ganzen Geldsack. Danach dauert es einige Züge, bis der nächste Räuber kommt.',
   ]],
 ];
 
