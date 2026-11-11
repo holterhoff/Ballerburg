@@ -1,7 +1,7 @@
 /*
  * Was der König zu seinem Schöpfer zu sagen hat.
  * Ballerburg wurde 1987 von Eckhard Kruse für den Atari ST geschrieben, in C.
- * Die Sprüche hat sich Burgfehde ausgedacht, sie sind keine Zitate von Herrn Kruse.
+ * Die Sprüche sind für diese Fassung ausgedacht, sie sind keine Zitate von Herrn Kruse.
  * Wer mag, schreibt hier eigene dazu: einfach eine neue Zeile in die Liste.
  */
 
@@ -61,7 +61,7 @@ export const KRUSE_SAYINGS = [
  */
 export const ROASTS = [
   {
-    // Burgfehde extension "overheat": a cannon blew up or glows red
+    // Extension "overheat": a cannon blew up or glows red
     when: (c) => c.overheats > 0 || c.redHot > 0,
     lines: (c) => c.overheats > 0 ? [
       `${c.overheats === 1 ? 'Ein Geschütz' : `${c.overheats} Geschütze`} heißgeschossen! Meister Kruse hat Euch mehrere Kanonen gegeben, nicht eine zum Grillen.`,

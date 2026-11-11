@@ -29,6 +29,61 @@ function brickTexture(THREE, look, repeatX, repeatY) {
   return t;
 }
 
+const CARRIAGE_LENGTH = 2.1;
+const CARRIAGE_HEIGHT = 1.14;
+const BARREL_LENGTH = 2.75;
+
+/** Loads a GLB, drops its emissive glow, scales its x length to `length` and centres it. */
+function loadModel(THREE, loader, url, length, keep) {
+  return loader.loadAsync(url).then((gltf) => {
+    const model = gltf.scene;
+    model.traverse((o) => {
+      if (!o.isMesh) return;
+      keep(o.geometry);
+      for (const m of [].concat(o.material)) {
+        m.emissiveMap = null;
+        m.emissive?.setRGB(0, 0, 0);
+        // without an environment map, strongly metallic PBR materials render almost black
+        if ('metalness' in m) m.metalness = Math.min(m.metalness, 0.35);
+        m.metalnessMap = null;
+        keep(m);
+        for (const k of ['map', 'normalMap', 'roughnessMap']) if (m[k]) keep(m[k]);
+      }
+    });
+    const box = new THREE.Box3().setFromObject(model);
+    const size = box.getSize(new THREE.Vector3());
+    const s = length / size.x;
+    model.scale.setScalar(s);
+    const c = box.getCenter(new THREE.Vector3());
+    model.position.set(-c.x * s, -box.min.y * s, -c.z * s);
+    const holder = new THREE.Group();
+    holder.add(model);
+    holder.rotation.y = Math.PI; // muzzle from -x to +x
+    return { holder, height: size.y * s };
+  });
+}
+
+/** Barrel and carriage of the pirate cannon, or null if they cannot be loaded (the primitives stay). */
+function loadPirateCannon(THREE, keep) {
+  return import('three/examples/jsm/loaders/GLTFLoader.js')
+    .then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      const base = import.meta.env.BASE_URL;
+      return Promise.all([
+        loadModel(THREE, loader, `${base}models/pirat-lafette.glb`, CARRIAGE_LENGTH, keep),
+        loadModel(THREE, loader, `${base}models/pirat-rohr.glb`, BARREL_LENGTH, keep),
+      ]);
+    })
+    .then(([carriage, barrel]) => {
+      // the barrel turns about its trunnions, which sit roughly at its middle
+      barrel.holder.position.y = -barrel.height / 2;
+      const wrap = new THREE.Group();
+      wrap.add(barrel.holder);
+      return { carriage: carriage.holder, barrel: wrap };
+    })
+    .catch(() => null);
+}
+
 /**
  * A 3D field gun built from simple three.js primitives, standing on the wall walk of its castle:
  * stone floor, crenellated parapets, a tower with a pointed roof and the mountain in the distance.
@@ -129,16 +184,19 @@ export default function Cannon3D({ angle, powder, side, onUnavailable }) {
         // ---------- the gun ----------
         const gun = new THREE.Group();
         scene.add(gun);
+        // Simple primitives first; replaced by the pirate cannon models once they have loaded.
+        const simple = new THREE.Group();
+        gun.add(simple);
         for (const z of [-0.42, 0.42]) {
           const cheek = new THREE.Mesh(geo(new THREE.BoxGeometry(1.9, 0.35, 0.14)), wood);
           cheek.position.set(-0.35, 0.72, z);
           cheek.rotation.z = 0.28;
-          gun.add(cheek);
+          simple.add(cheek);
         }
         const trail = new THREE.Mesh(geo(new THREE.BoxGeometry(1.6, 0.18, 0.7)), wood);
         trail.position.set(-1.25, 0.32, 0);
         trail.rotation.z = 0.33;
-        gun.add(trail);
+        simple.add(trail);
         for (const z of [-0.62, 0.62]) {
           const wheel = new THREE.Group();
           wheel.position.set(0.2, 0.62, z);
@@ -151,33 +209,49 @@ export default function Cannon3D({ angle, powder, side, onUnavailable }) {
             spoke.rotation.z = (k * Math.PI) / 8;
             wheel.add(spoke);
           }
-          gun.add(wheel);
+          simple.add(wheel);
         }
         const pivot = new THREE.Group();
         pivot.position.set(0.15, 1.0, 0);
         gun.add(pivot);
+        const simpleBarrel = new THREE.Group();
+        pivot.add(simpleBarrel);
         const barrel = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.16, 0.24, 2.2, 28)), bronze);
         barrel.rotation.z = -Math.PI / 2;
         barrel.position.x = 0.55;
-        pivot.add(barrel);
+        simpleBarrel.add(barrel);
         const muzzle = new THREE.Mesh(geo(new THREE.TorusGeometry(0.18, 0.05, 10, 24)), bronze);
         muzzle.rotation.y = Math.PI / 2;
         muzzle.position.x = 1.65;
-        pivot.add(muzzle);
+        simpleBarrel.add(muzzle);
         const bore = new THREE.Mesh(geo(new THREE.CircleGeometry(0.1, 20)), iron);
         bore.rotation.y = Math.PI / 2;
         bore.position.x = 1.67;
-        pivot.add(bore);
+        simpleBarrel.add(bore);
         const breech = new THREE.Mesh(geo(new THREE.SphereGeometry(0.25, 20, 14)), bronze);
         breech.position.x = -0.55;
-        pivot.add(breech);
+        simpleBarrel.add(breech);
         const knob = new THREE.Mesh(geo(new THREE.SphereGeometry(0.09, 12, 8)), bronze);
         knob.position.x = -0.85;
-        pivot.add(knob);
+        simpleBarrel.add(knob);
         const trunnion = new THREE.Mesh(geo(new THREE.CylinderGeometry(0.08, 0.08, 0.9, 12)), bronze);
         trunnion.rotation.x = Math.PI / 2;
-        pivot.add(trunnion);
+        simpleBarrel.add(trunnion);
         gun.rotation.y = side === 0 ? -0.3 : Math.PI + 0.3;
+
+        // Pirate cannon (cast-iron barrel on a wooden truck carriage), made with Higgsfield / Meshy.
+        // The GLBs lie along x with the muzzle at -x; they are turned so the muzzle points at +x.
+        loadPirateCannon(THREE, keep).then((parts) => {
+          if (disposed || !parts) return;
+          const { carriage, barrel: ironBarrel } = parts;
+          simple.visible = false;
+          simpleBarrel.visible = false;
+          carriage.position.set(-0.15, 0, 0);
+          gun.add(carriage);
+          ironBarrel.position.set(0.1, 0, 0);
+          pivot.add(ironBarrel);
+          pivot.position.set(0.05, CARRIAGE_HEIGHT * 0.86, 0);
+        });
 
         // Powder keg next to the gun, scaled by the charge.
         const keg = new THREE.Group();

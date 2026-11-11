@@ -24,7 +24,7 @@ function playersFrom(sides) {
 /**
  * The weather vane of the original info box (werdran()): a pole with a flag of 20 px. Without wind
  * the flag hangs down, the stronger the wind the higher it flies (angle |wind|/15, at most 90°).
- * The outer edge bends a little less than the flag (0.82), so the cloth sags. Burgfehde lets it
+ * The outer edge bends a little less than the flag (0.82), so the cloth sags. This version lets it
  * flutter: the stronger the wind, the faster and wider the cloth waves.
  */
 function WindGauge({ wind, known }) {
@@ -131,7 +131,7 @@ export default function App() {
 
   const mode = sides.map((s) => s.type).join('-');
   const menus = [
-    { title: 'Burgfehde', items: [{ label: 'Über Burgfehde …', onSelect: () => setDialog({ type: 'about' }) }] },
+    { title: 'Ballerburg', items: [{ label: 'Über Ballerburg …', onSelect: () => setDialog({ type: 'about' }) }] },
     {
       title: 'Spiel',
       items: [

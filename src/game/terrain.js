@@ -1,12 +1,12 @@
 /*
  * Schlachtfeld-Erzeugung.
  * "klassisch" ist eine Portierung von bild() aus baller2.c (Ballerburg, (C) 1987, 1989 Eckhard Kruse,
- * (C) 2010-2015 Thomas Huth, GNU GPL v3). Die übrigen Bergformen sind Erweiterungen von Burgfehde.
+ * (C) 2010-2015 Thomas Huth, GNU GPL v3). Die übrigen Bergformen sind Erweiterungen dieser Fassung.
  */
 import { W, H } from './constants.js';
 
 /**
- * Burgfehde: the battlefield is always random. Mostly one mountain in the original shape, low or
+ * Neufassung: the battlefield is always random. Mostly one mountain in the original shape, low or
  * high; now and then a gorge between two rock towers. The summit always stays on the screen.
  */
 export const TERRAINS = [{ key: 'zufall', label: 'Zufall' }];
@@ -50,10 +50,10 @@ function classicMountain(h, by, widths) {
       x2 -= v2;
     }
   }
-  // Burgfehde: stretch the mountain upward by a random factor 1.0..1.8, measured from the higher
+  // Neufassung: stretch the mountain upward by a random factor 1.0..1.8, measured from the higher
   // castle ground. The flank shape stays the original one, the peak ends up anywhere from
   // the original height to near the top edge.
-  // Burgfehde: scale the height between flat (0.55) and as high as the screen allows; the summit
+  // Neufassung: scale the height between flat (0.55) and as high as the screen allows; the summit
   // never leaves the screen.
   const ref = Math.min(by[0], by[1]);
   let peak = H;
@@ -69,7 +69,7 @@ function peakAt(x, l, cx, r) {
   return 0.55 * f + 0.45 * smooth(f);
 }
 
-/** Burgfehde extension: alternative mountain shapes. */
+/** Extension: alternative mountain shapes. */
 function shapeFn(kind, l, r) {
   const mid = (l + r) / 2;
   switch (kind) {
@@ -89,7 +89,7 @@ function shapeFn(kind, l, r) {
       const bumps = Array.from({ length: 3 + randInt(2) }, () => ({ c: rand(l + 30, r - 30), w: rand(35, 70), h: rand(0.4, 1) }));
       return { height: rand(60, 120), f: (x) => (x <= l || x >= r ? 0 : Math.min(1.2, bumps.reduce((s, b) => s + b.h * Math.max(0, 1 - Math.abs(x - b.c) / b.w) ** 1.5, 0))) };
     }
-    // Burgfehde: harder shapes. Two towers right in front of the castles force steep lobs.
+    // Neufassung: harder shapes. Two towers right in front of the castles force steep lobs.
     case 'schlucht': {
       const w = rand(45, 70), h2 = rand(0.75, 1);
       return { height: rand(150, 250), f: (x) => Math.max(peakAt(x, l, l + w * 0.6, l + w * 1.6), h2 * peakAt(x, r - w * 1.6, r - w * 0.6, r)) };

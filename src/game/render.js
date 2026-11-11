@@ -45,7 +45,7 @@ export function createRenderer() {
 }
 
 /**
- * Burgfehde: times of day. Each has its own sky, a sun or moon, stars or clouds, the colours
+ * Neufassung: times of day. Each has its own sky, a sun or moon, stars or clouds, the colours
  * of the distant ridges and a light tint laid over castles and terrain.
  */
 export const SKIES = {
@@ -150,7 +150,7 @@ export function refreshTerrain(r, game) {
           d[o + 3] = 0;
           continue;
         }
-        // Burgfehde: back wall of a hollow room — dim masonry, shadow under the ceiling,
+        // Neufassung: back wall of a hollow room — dim masonry, shadow under the ceiling,
         // a wooden floor and warm torchlight, so chambers blend into the castle.
         const C = BRICK_COLORS[room - 1];
         let R, G, B;
@@ -270,7 +270,7 @@ function drawKing(c, x, y, pal, t) {
   px(c, x + 10, y + 5, 1, 8);
 }
 
-/** Burgfehde extension "overheat": muzzle glow after 1, 2 and 3 shots in a row. */
+/** Extension "overheat": muzzle glow after 1, 2 and 3 shots in a row. */
 const HEAT_COLORS = [null, ['#ffd84a', 'rgba(255, 216, 74, 0.35)'], ['#ff8c1a', 'rgba(255, 140, 26, 0.4)'], ['#ff2a14', 'rgba(255, 42, 20, 0.45)']];
 
 function drawCannon(c, o, pal, angle, highlight, heat = 0, t = 0) {
@@ -597,7 +597,7 @@ export function drawScene(c, game, r, view) {
     c.fillRect((pr.x | 0) - 1, (pr.y | 0) - 1, 1, 1);
   }
 
-  // Burgfehde: fireball inside a hit store room (drawn under the flying debris)
+  // Neufassung: fireball inside a hit store room (drawn under the flying debris)
   for (const b of game.blasts || []) {
     const k = b.t / b.life;
     const big = b.kind === 'powder';

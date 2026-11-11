@@ -1,5 +1,5 @@
 {
-  "name": "burgfehde",
+  "name": "ballerburg",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -18,5 +18,5 @@
     "vite": "^5.4.11"
   },
   "license": "GPL-3.0-or-later",
-  "description": "Burgfehde – Burgen-Artilleriespiel im Browser, Spiellogik portiert von Ballerburg (Eckhard Kruse, Thomas Huth)"
+  "description": "Ballerburg – Burgen-Artilleriespiel im Browser, nach dem Original von Eckhard Kruse"
 }

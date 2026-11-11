@@ -1,5 +1,5 @@
 /*
- * Burgen von Burgfehde.
+ * Burgen der Ballerburg-Neufassung.
  * Der Datenaufbau folgt dem Prinzip von BALLER.DAT aus Ballerburg ((C) 1987 Eckhard Kruse, GNU GPL v3):
  * Breite, Kanonenplätze, Thron, Windfahne, Lagerkammern (deren Größe die Kapazität bestimmt) und Startwerte.
  * Die sechs Original-Burgen werden direkt aus der Original-BALLER.DAT gelesen
@@ -741,7 +741,7 @@ function datNumbers(text) {
 }
 
 /**
- * Burgfehde: Die Original-Burgen sind sehr unterschiedlich stark (im Computer-Turnier gewann Burg 2
+ * Neufassung: Die Original-Burgen sind sehr unterschiedlich stark (im Computer-Turnier gewann Burg 2
  * 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen die starken mit weniger Gold, Pulver,
  * Kugeln und Volk. Umrisse und Geschütze bleiben wie im Original.
  * Die Originalwerte stehen weiter in BALLER.DAT.
@@ -755,10 +755,10 @@ const BALANCE = {
   original6: { start: { money: 270, powder: 80, balls: 5, pop: 180 } },
 };
 
-/** Burgfehde gives the six original castles names; in the original they only had numbers. */
+/** This version gives the six original castles names; in the original they only had numbers. */
 const ORIGINAL_NAMES = ['Altenstein', 'Hohe Warte', 'Treppenfels', 'Königsfeste', 'Klausenburg', 'Mittelturm'];
 
-/** Turns BALLER.DAT into castles in Burgfehde's format. */
+/** Turns BALLER.DAT into castles in this version's format. */
 function originalCastles(text) {
   const n = datNumbers(text);
   const castles = {};
@@ -828,7 +828,7 @@ function settleObjects(c) {
   c.vane = settle(c.vane, SIZES.vane);
 }
 
-// the original castles come first in the list, then Burgfehde's own designs
+// the original castles come first in the list, then this version's own designs
 {
   const own = { ...CASTLES };
   for (const k of Object.keys(CASTLES)) delete CASTLES[k];
@@ -906,7 +906,7 @@ export function buildCastle(key, side, groundY) {
     chamber('balls'),
   ];
   // Original: drin(bg[21], bg[22], 30, 25) – a hit anywhere in the 30×25 throne room hits the king.
-  // Burgfehde's own castles get the same room, centred on the king and standing on his floor.
+  // this version's own castles get the same room, centred on the king and standing on his floor.
   const king = objects.find((o) => o.type === 'king');
   const [tx, ty, tw, th] = c.throne;
   king.hit = { x: wx(tx, tw), y: groundY - ty - th, w: tw, h: th };

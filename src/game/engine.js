@@ -1,17 +1,17 @@
 /*
- * Burgfehde – Spiel-Engine.
+ * Ballerburg – Spiel-Engine (Neufassung).
  *
  * Die Spiellogik ist eine Portierung von Ballerburg nach JavaScript:
  *   Copyright (C) 1987, 1989  Eckhard Kruse
  *   Copyright (C) 2010, 2015  Thomas Huth (SDL-Fassung)
- *   Copyright (C) 2026        Burgfehde
+ *   Copyright (C) 2026        Ballerburg-Neufassung
  *
  * This program is free software: you can redistribute it and/or modify it under the terms of the
  * GNU General Public License as published by the Free Software Foundation, either version 3 of the
  * License, or (at your option) any later version. See LICENSE.
  *
  * Jede Methode nennt ihr Gegenstück im C-Original (baller1.c, baller2.c, market.c, cannoneer.c).
- * Abweichungen und Erweiterungen sind mit "Burgfehde:" gekennzeichnet.
+ * Abweichungen und Erweiterungen sind mit "Neufassung:" gekennzeichnet.
  */
 import { GREETINGS, KRUSE_SAYINGS, ROASTS, PRAISE } from './kingtalk.js';
 import {
@@ -23,7 +23,7 @@ import { sound } from './sound.js';
 
 /** Original: frames of expls() per hit object (the throne gets 40 + 200). No sound for the vane. */
 const EXPLOSION_FRAMES = { cannon: 50, mine: 120, king: 240 };
-/** Burgfehde extension "overheat": a cannon survives this many shots in a row, the next one blows it up. */
+/** Extension "overheat": a cannon survives this many shots in a row, the next one blows it up. */
 export const HEAT_MAX = 3;
 import { recordResult } from './scores.js';
 
@@ -50,23 +50,23 @@ const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
 const MAX_MINES = 5;
 const MINE_LIMIT_X = 265;
-/** Burgfehde: a shaft tower survives the first hit; the notch it cuts is 2 px wider on each side. */
+/** Neufassung: a shaft tower survives the first hit; the notch it cuts is 2 px wider on each side. */
 const MINE_HITS = 2;
-/** Burgfehde: the times of day (sky looks live in render.js). */
+/** Neufassung: the times of day (sky looks live in render.js). */
 export const TIMES = ['morgen', 'tag', 'abend', 'nacht'];
 const MINE_NOTCH = 2;
 /** Original: bricks can only be laid below y = 155. */
 const BUILD_MIN_Y = 155;
-/** Burgfehde: bricks are 8×4 pixels like the masonry pattern; like the original they may be laid up to 15 px in front of the castle. */
+/** Neufassung: bricks are 8×4 pixels like the masonry pattern; like the original they may be laid up to 15 px in front of the castle. */
 const BRICK_W = 8;
 const BRICK_H = 4;
 const BUILD_MARGIN = 15; // original: anbau() only within bg[0]+15
-/** Burgfehde: strongest wind (the original allowed about 30). */
+/** Neufassung: strongest wind (the original allowed about 30). */
 const WIND_MAX = 20;
 
 /**
  * Computer strategies (original: cw[] with the seven named computer players).
- * Burgfehde uses its own names; the behaviour per index follows comp() in baller2.c.
+ * This version uses its own names; the behaviour per index follows comp() in baller2.c.
  */
 export const STRATEGIES = [
   { name: 'Knappe Kurt', desc: 'Schießt irgendwohin auf die feindliche Burg.' },
@@ -91,11 +91,11 @@ export const DEFAULT_OPTIONS = {
   autoCapitulate: true,
   /** Original: an_erl, laying bricks is allowed. */
   allowBuilding: true,
-  /** Burgfehde test mode: laying bricks costs nothing. Set to true only for testing. */
+  /** Test mode: laying bricks costs nothing. Set to true only for testing. */
   freeBuilding: false,
-  /** Burgfehde: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
+  /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
-  /** Burgfehde extensions, all off by default so the game plays like the original. */
+  /** Extensions, all off by default so the game plays like the original. */
   extensions: { landslides: false, falling: false, overheat: false },
 };
 
@@ -138,7 +138,7 @@ export class Game {
     this.heights = Float32Array.from(terrain.heights);
     this.baseY = terrain.baseY.slice();
     this.solid = new Uint8Array(W * H);
-    /** Burgfehde: hollow castle rooms (side + 1), drawn with a back wall instead of sky. */
+    /** Neufassung: hollow castle rooms (side + 1), drawn with a back wall instead of sky. */
     this.interior = new Uint8Array(W * H);
     for (let x = 0; x < W; x++)
       for (let y = Math.max(0, Math.ceil(this.heights[x])); y < H; y++) this.solid[y * W + x] = EARTH;
@@ -167,14 +167,14 @@ export class Game {
     });
 
     // original: wnd = rand()%60-30; prices p[j] = pr[j]*(95+rand()%11)/100
-    this.wind = rnd(40) - 20; // original: rand()%60-30; Burgfehde: a third weaker, the mountains fly higher
+    this.wind = rnd(40) - 20; // original: rand()%60-30; Neufassung: a third weaker, the mountains fly higher
     this.prices = Object.fromEntries(MARKET.map((m, j) => [m.key, idiv(START_PRICES[j] * (95 + rnd(11)), 100)]));
     this.move = 0; // original: zug
     this.round = 1;
     this.projectile = null;
     this.particles = [];
     this.flashes = [];
-    /** Burgfehde: explosions inside a hit store room. */
+    /** Neufassung: explosions inside a hit store room. */
     this.blasts = [];
     this.blasts = [];
     this.phase = 'idle';
@@ -218,7 +218,7 @@ export class Game {
   isSolid(x, y) {
     x |= 0; y |= 0;
     if (x < 0 || x >= W) return false;
-    if (y < 0) return this.heights[x] < y; // Burgfehde: mountains may rise above the screen
+    if (y < 0) return this.heights[x] < y; // Neufassung: mountains may rise above the screen
     if (y >= H) return true;
     return this.solid[y * W + x] !== 0;
   }
@@ -270,7 +270,7 @@ export class Game {
     const p = this.cur;
     // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
     p.visitedThisTurn = false;
-    // original: wnd*9/10 + rand()%12-6; Burgfehde: smaller changes, never above WIND_MAX
+    // original: wnd*9/10 + rand()%12-6; Neufassung: smaller changes, never above WIND_MAX
     if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + rnd(9) - 4, -WIND_MAX, WIND_MAX);
     this.hasFired = false;
     this.firedCannon = null;
@@ -299,7 +299,7 @@ export class Game {
   finishMove() {
     const mover = this.cur;
     if (!mover.visitedThisTurn) mover.visitStreak = 0; // original: if (~kn&16) kn &= ~15
-    // Burgfehde extension: every cannon that did not fire in this move cools down completely
+    // Extension: every cannon that did not fire in this move cools down completely
     if (this.options.extensions.overheat)
       for (const c of this.objectsOf(mover.idx, 'cannon')) if (c.id !== this.firedCannon) c.heat = 0;
     this.reckon(mover);
@@ -391,7 +391,7 @@ export class Game {
     return !!c && c.alive && c.owner === this.current && !this.hasFired && !this.shotProblem() && (this.phase === 'aim' || this.phase === 'ai');
   }
 
-  /** Burgfehde: the muzzle of our cannon sprite. Original: x = ka.x+10+7*f, y = ka.y-10. */
+  /** Neufassung: the muzzle of our cannon sprite. Original: x = ka.x+10+7*f, y = ka.y-10. */
   muzzle(c) {
     return { x: c.x + c.w / 2 + this.dir(c.owner) * 7, y: c.y - 2 };
   }
@@ -421,7 +421,7 @@ export class Game {
     this.hasFired = true;
     this.firedCannon = c.id;
     if (this.options.extensions.overheat) {
-      // Burgfehde extension: the fourth shot in a row blows the cannon up instead of firing
+      // Extension: the fourth shot in a row blows the cannon up instead of firing
       if ((c.heat || 0) >= HEAT_MAX) return this.overheat(c);
       c.heat = (c.heat || 0) + 1;
       if (c.heat === HEAT_MAX) this.say('Das Rohr glüht rot! Noch ein Schuss, und das Geschütz fliegt in die Luft.', 'warn');
@@ -437,7 +437,7 @@ export class Game {
   }
 
   /**
-   * Burgfehde extension "overheat": the cannon fired HEAT_MAX times in a row and explodes.
+   * Extension "overheat": the cannon fired HEAT_MAX times in a row and explodes.
    * Powder and ball are lost, the move ends, the slot is free for a new cannon.
    */
   overheat(c) {
@@ -560,7 +560,7 @@ export class Game {
   }
 
   /**
-   * Burgfehde: a shaft tower takes MINE_HITS hits. Every hit but the last only damages it
+   * Neufassung: a shaft tower takes MINE_HITS hits. Every hit but the last only damages it
    * (broken wheel); the original destroyed it at once.
    */
   hitMine(o, by) {
@@ -602,7 +602,7 @@ export class Game {
   }
 
   /**
-   * Burgfehde: a hit store room explodes visibly — a fireball inside the chamber, smoke,
+   * Neufassung: a hit store room explodes visibly — a fireball inside the chamber, smoke,
    * and the lost goods (coins, keg staves, cannonballs) flying out.
    */
   chamberBlast(o, kind, items) {
@@ -645,7 +645,7 @@ export class Game {
     this.particles.push({ x, y, vx: (Math.random() - 0.5) * 120, vy: -20 - Math.random() * 90, life: 0.6 + Math.random() * 0.8, col });
   }
 
-  /** Burgfehde extension: loose earth above a crater slides down. */
+  /** Extension: loose earth above a crater slides down. */
   settleEarth(xa, xb) {
     const blocked = (x, y) => y >= H || this.solid[y * W + x] !== 0 || this.objects.some((o) => o.alive && x >= o.x && x < o.x + o.w && y >= o.y && y < o.y + o.h);
     let moved = 0;
@@ -663,7 +663,7 @@ export class Game {
     if (moved > 400) this.say('Ein Hang rutscht ab.');
   }
 
-  /** Burgfehde extension: castle parts without support fall down. */
+  /** Extension: castle parts without support fall down. */
   checkSupport() {
     for (const o of this.objects)
       if (o.alive && !o.fall && !this.supported(o)) o.fall = { vy: 0, acc: 0, startY: o.y };
@@ -679,7 +679,7 @@ export class Game {
 
   /**
    * Original: init_ka() looks for the first cannon slot that is free and has room above it.
-   * Burgfehde: a slot must also stand on something and see the sky. When every slot of the
+   * Neufassung: a slot must also stand on something and see the sky. When every slot of the
    * castle is shot away or built over, the cannon goes on the highest free place of your own
    * building zone instead, so a damaged or rebuilt castle can always arm itself again.
    */
@@ -691,7 +691,7 @@ export class Game {
   }
 
   /**
-   * Original: init_ka() simply draws the cannon over whatever is there. Burgfehde clears the place,
+   * Original: init_ka() simply draws the cannon over whatever is there. This version clears the place,
    * and if the wall below was shot away, it mortars a small pillar so the cannon stands on something.
    */
   prepareCannonSlot(s, side) {
@@ -721,7 +721,7 @@ export class Game {
     const offset = p.width + 8 + t * 22;
     if (offset + w > MINE_LIMIT_X) return null;
     const x = p.idx === 0 ? offset : W - offset - w;
-    // Burgfehde: the tower stands on the lowest ground under its footprint and cuts a level
+    // Neufassung: the tower stands on the lowest ground under its footprint and cuts a level
     // notch into the slope (earth only), instead of floating in front of a steep mountain.
     let base = 0;
     for (let i = x; i < x + w; i++) {
@@ -808,7 +808,7 @@ export class Game {
 
   /**
    * Where a stone goes when the player paints at (lx, ly).
-   * Original anbau(): a 4×4 stone that touches ground or wall. Burgfehde paints like a brush:
+   * Original anbau(): a 4×4 stone that touches ground or wall. This version paints like a brush:
    * dragging lays a stone wherever there is room next to ground, wall or an earlier stone.
    * A single click into the air lets the stone fall until it rests on something.
    * Stones stay on your own side (castle width + BUILD_MARGIN) and below y = BUILD_MIN_Y.
@@ -868,7 +868,7 @@ export class Game {
   /* ======================= König (original: koenig()) ======================= */
 
   /**
-   * The king's audience. Conditions follow koenig() in baller2.c; the wording is Burgfehde's.
+   * The king's audience. Conditions follow koenig() in baller2.c; the wording is our own.
    * He refuses when visited twice in one move, too often in a row, or at random (1 in 20).
    */
   audience() {
@@ -878,7 +878,7 @@ export class Game {
     const mines = this.objectsOf(p.idx, 'mine').length;
     let result;
     if (!p.greeted) {
-      // Burgfehde: the first audience is a greeting from the king about his maker, Eckhard Kruse
+      // Neufassung: the first audience is a greeting from the king about his maker, Eckhard Kruse
       p.greeted = true;
       result = { greeting: true, text: GREETINGS[rnd(GREETINGS.length)] };
     } else if (!rnd(20) || p.visitedThisTurn || p.visitStreak > 9) {
@@ -899,8 +899,8 @@ export class Game {
       if (this.move < 4) { s.length = 0; s.push('Was sollen Wir in so einer frühen Phase schon sagen?'); }
       let text = s[rnd(s.length)];
       const tip = this.move >= 4 && this.advice(p);
-      if (tip && rnd(3)) text = tip.text; // Burgfehde: the king mostly tells you what to do now
-      // Burgfehde: the king talks about Meister Kruse — and mocks you when things go badly
+      if (tip && rnd(3)) text = tip.text; // Neufassung: the king mostly tells you what to do now
+      // Neufassung: the king talks about Meister Kruse — and mocks you when things go badly
       const talk = this.move >= 2 && this.kingTalk(p);
       if (talk) text = talk;
       if (text === p.lastAudience) text = 'Wir haben Euch nichts Neues zu sagen.';
@@ -914,7 +914,7 @@ export class Game {
   }
 
   /**
-   * Burgfehde: what the king says about Meister Kruse. When the game goes badly for you he mocks
+   * Neufassung: what the king says about Meister Kruse. When the game goes badly for you he mocks
    * you (most of the time), when it goes well he is smug, otherwise he tells a Kruse story
    * every other audience. Every saying comes once before any repeats.
    */
@@ -950,7 +950,7 @@ export class Game {
   }
 
   /**
-   * Burgfehde: the king's advice at the start of each human move, shown in the status line.
+   * Neufassung: the king's advice at the start of each human move, shown in the status line.
    * First what the taxes did to the people during the last move, then the most urgent thing
    * missing for the war: a cannon, powder, balls, shaft towers. When nothing can be done,
    * he tells you to sit the move out.
@@ -1015,7 +1015,7 @@ export class Game {
     if (!this.objectsOf(n, 'cannon').length && p.money >= this.prices.cannon && this.freeCannonSlot(p)) this.buy('cannon');
     if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
 
-    // Burgfehde extension: the computer never fires a red-hot cannon; with none left it sits out
+    // Extension: the computer never fires a red-hot cannon; with none left it sits out
     const cannons = this.objectsOf(n, 'cannon').filter((c) => !this.options.extensions.overheat || (c.heat || 0) < HEAT_MAX);
     if (!cannons.length || p.powder < 20 || !p.balls) return null;
 
@@ -1073,7 +1073,7 @@ export class Game {
       const powder = clamp(Math.trunc((4 * vx) / Math.cos(angle / 57.296) - 1.6), 0, 99);
       return { cannon, angle, powder, vx: vx * f, vy };
     };
-    // Burgfehde: the computer picks a cannon whose shot does not hit its own castle
+    // Neufassung: the computer picks a cannon whose shot does not hit its own castle
     // (in the original it often shot its own walls to pieces at the start).
     const order = [...cannons].sort(() => Math.random() - 0.5);
     for (const cannon of order) {
@@ -1083,7 +1083,7 @@ export class Game {
     return aimFrom(order[0]);
   }
 
-  /** Burgfehde: does a shot with this start speed leave its own building zone without hitting anything? */
+  /** Neufassung: does a shot with this start speed leave its own building zone without hitting anything? */
   shotClearsOwnCastle(cannon, vx, vy) {
     const n = cannon.owner, width = this.players[n].width + BUILD_MARGIN;
     const m = this.muzzle(cannon);
@@ -1128,7 +1128,7 @@ export class Game {
     this.emit();
   }
 
-  /** Burgfehde: the sky for this game, from the time-of-day option. */
+  /** Neufassung: the sky for this game, from the time-of-day option. */
   pickSky() {
     const t = this.options.timeOfDay;
     return TIMES.includes(t) ? t : TIMES[rnd(TIMES.length)];

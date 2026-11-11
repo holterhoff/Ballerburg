@@ -1,6 +1,6 @@
-# Burgfehde
+# Ballerburg
 
-Ein Burgen-Artilleriespiel für den Browser, gebaut mit React und Vite, mit einer Oberfläche im Stil eines Desktops der 1980er Jahre.
+Das Burgen-Artilleriespiel von Eckhard Kruse als Neufassung für den Browser, gebaut mit React und Vite, mit einer Oberfläche im Stil eines Desktops der 1980er Jahre.
 
 ## Herkunft und Lizenz
 
@@ -9,9 +9,9 @@ Die **Spiellogik** ist eine Portierung von **Ballerburg** nach JavaScript:
 - Ballerburg © 1987, 1989 Eckhard Kruse
 - Ballerburg SDL © 2010, 2015 Thomas Huth (https://baller.tuxfamily.org/), veröffentlicht unter der GNU GPL v3
 
-Burgfehde ist ein davon abgeleitetes Werk und steht deshalb ebenfalls unter der **GNU General Public License, Version 3 oder später** (siehe [LICENSE](LICENSE)). Das heißt: Wer Burgfehde weitergibt oder veröffentlicht, muss den Quellcode unter derselben Lizenz zugänglich machen und diese Hinweise erhalten.
+Diese Fassung ist ein davon abgeleitetes Werk und steht deshalb ebenfalls unter der **GNU General Public License, Version 3 oder später** (siehe [LICENSE](LICENSE)). Das heißt: Wer sie weitergibt oder veröffentlicht, muss den Quellcode unter derselben Lizenz zugänglich machen und diese Hinweise erhalten.
 
-Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte, Oberfläche, Ton sowie die als „Erweiterung“ markierten Spielregeln (zusätzliche Bergformen, nachrutschende Hänge, abstürzende Burgteile). Die Original-Burgen, die Musik und der Name „Ballerburg“ werden nicht verwendet.
+Eigene Arbeiten dieser Fassung: Grafik, Burgen, Figuren- und Computernamen, Texte, Oberfläche, Ton sowie die als „Erweiterung“ markierten Spielregeln (zusätzliche Bergformen, nachrutschende Hänge, abstürzende Burgteile). Den Namen „Ballerburg“ und das Spiel nutzen wir mit Erlaubnis von Eckhard Kruse (Mail vom 10.11.2026); er ist als Erfinder des Spiels genannt.
 
 ### Änderungen gegenüber dem Original
 
@@ -19,7 +19,7 @@ Eigene Arbeiten von Burgfehde: Grafik, Burgen, Figuren- und Computernamen, Texte
 - Eigene Burgen im selben Datenprinzip (Breite, Kanonenplätze, Thron, Windfahne, Kammern, Startwerte), aber mit eigenen Formen.
 - Eigene Sprite-Grafik und Farben. Treffer werden über die Rechtecke dieser Sprites geprüft statt über die Original-Bildpunkte.
 - Erweiterungen (abschaltbar, im Menü „Modus → Optionen“): weitere Bergformen, Erdrutsch, Einsturz.
-- Weitere Burgfehde-Regeln: Der klassische Berg wird zufällig 1- bis 1,8-mal so hoch gestreckt. Fördertürme graben sich eine Stufe in den Hang und halten zwei Treffer aus (der erste bricht das Rad). Anbauen setzt 8x4-Steine, die auf Mauer oder Boden fallen, und ist im Testmodus kostenlos (`freeBuilding`).
+- Weitere eigene Regeln: Der klassische Berg wird zufällig 1- bis 1,8-mal so hoch gestreckt. Fördertürme graben sich eine Stufe in den Hang und halten zwei Treffer aus (der erste bricht das Rad). Anbauen setzt 8x4-Steine, die auf Mauer oder Boden fallen, und ist im Testmodus kostenlos (`freeBuilding`).
 
 ## Spielprinzip (wie im Original)
 
@@ -69,6 +69,8 @@ Es gibt 20 Burgen. Sie sind per Turnier ausbalanciert: Jede Burg spielte gegen j
 
 Der Zieldialog zeigt das Geschütz als 3D-Modell (three.js, wird erst beim Öffnen nachgeladen). Das Rohr folgt dem Winkel, das Pulverfass wächst mit der Ladung. Ohne WebGL erscheint eine 2D-Zeichnung.
 
+Das Geschütz ist eine Piratenkanone: ein gusseisernes Rohr auf einer hölzernen Schiffslafette. Beide Teile wurden mit Higgsfield (Meshy, Bild zu 3D) erzeugt und liegen als GLB in `public/models/`, die Texturen sind auf 512 px verkleinert. Rohr und Lafette sind getrennte Modelle, damit sich das Rohr um die Schildzapfen neigen kann. Bis die Modelle geladen sind oder wenn sie fehlen, zeigt der Dialog das einfache Geschütz aus Grundkörpern.
+
 ## Lokal starten
 
 ```bash
@@ -78,7 +80,7 @@ npm run dev
 
 ## Veröffentlichen (Vercel)
 
-`vercel.json` ist vorhanden. Wegen der GPL muss der Quellcode öffentlich zugänglich sein, zum Beispiel als öffentliches GitHub-Repository, das auf Vercel importiert wird. Im Spiel verweist „Burgfehde → Über Burgfehde …“ auf Lizenz und Quellcode.
+`vercel.json` ist vorhanden. Wegen der GPL muss der Quellcode öffentlich zugänglich sein, zum Beispiel als öffentliches GitHub-Repository, das auf Vercel importiert wird. Im Spiel verweist „Ballerburg → Über Ballerburg …“ auf Lizenz und Quellcode.
 
 ## Aufbau
 

@@ -7,7 +7,7 @@
 
 export const W = 640;
 export const H = 400;
-/** Burgfehde: the stage is drawn at this multiple of the 640×400 world, so round shapes look smooth. */
+/** Neufassung: the stage is drawn at this multiple of the 640×400 world, so round shapes look smooth. */
 export const RES = 3;
 export const CELL = 4;
 export const COLS = 32;
@@ -24,7 +24,7 @@ export const POWDER_MIN = 5;
 export const POWDER_MAX = 20;
 export const DEFAULT_AIM = { angle: 45, powder: 12 };
 
-/** Pixel sizes [w, h] of the castle objects in Burgfehde's own graphics. */
+/** Pixel sizes [w, h] of the castle objects in this version's own graphics. */
 export const SIZES = {
   king: [12, 16],
   cannon: [12, 8],

@@ -17,7 +17,7 @@ export function Notice({ text, button = 'Abbruch', onClose }) {
   );
 }
 
-/** Burgfehde extension "overheat": what the aim dialog says after 1, 2 and 3 shots in a row. */
+/** Extension "overheat": what the aim dialog says after 1, 2 and 3 shots in a row. */
 const HEAT_TEXT = [
   '',
   'Das Rohr glüht gelb. Noch zwei Schüsse in Folge sind sicher.',
@@ -360,7 +360,7 @@ const RULES = [
     'Treffer in Lagerkammern kosten bis zu 200 Gold, das ganze Pulver oder zwei Kugeln. Jeder Einschlag in einer Burg kann Einwohner kosten.',
   ]],
   ['Erweiterungen', [
-    'Burgfehde hat ein paar Regeln, die es im Original nicht gab. Sie sind alle aus und lassen sich unter Modus → Optionen einschalten.',
+    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Sie sind alle aus und lassen sich unter Modus → Optionen einschalten.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
@@ -403,9 +403,9 @@ export function ScoresDialog({ onClose }) {
 
 export function AboutDialog({ onClose }) {
   return (
-    <Dialog title="B U R G F E H D E" onClose={onClose} className="narrow about">
-      <p className="gem-text">Ein Burgen-Artilleriespiel für den Browser.</p>
-      <p className="gem-text">Die Spiellogik ist eine Portierung von <b>Ballerburg</b>, © 1987, 1989 Eckhard Kruse, und der SDL-Fassung © 2010, 2015 Thomas Huth. Grafik, Burgen und Texte von Burgfehde sind eigene Arbeiten.</p>
+    <Dialog title="B A L L E R B U R G" onClose={onClose} className="narrow about">
+      <p className="gem-text">Das Burgen-Artilleriespiel für den Browser. Erfunden von <b>Eckhard Kruse</b>, 1987 für den Atari ST.</p>
+      <p className="gem-text">Die Spiellogik ist eine Portierung von Ballerburg, © 1987, 1989 Eckhard Kruse, und der SDL-Fassung © 2010, 2015 Thomas Huth. Name und Spiel mit freundlicher Erlaubnis von Eckhard Kruse. Grafik, neue Burgen und Texte dieser Fassung sind eigene Arbeiten.</p>
       <p className="gem-text">Dieses Programm ist freie Software unter der GNU General Public License, Version 3 oder später. Es kommt ohne jede Gewährleistung. Den Quellcode und den Lizenztext findest du im Projektarchiv (Datei LICENSE).</p>
       <p className="gem-small"><a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noreferrer">GNU GPL v3 lesen</a></p>
       <div className="gem-actions"><Btn def data-autofocus onClick={onClose}>OK</Btn></div>
