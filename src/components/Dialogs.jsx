@@ -361,7 +361,7 @@ const RULES = [
     'Treffer in Lagerkammern kosten bis zu 200 Gold, das ganze Pulver oder zwei Kugeln. Jeder Einschlag in einer Burg kann Einwohner kosten.',
   ]],
   ['Erweiterungen', [
-    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Unter Modus → Optionen lassen sie sich ein- und ausschalten. Heißlaufen und Räuber sind von Anfang an eingeschaltet.',
+    'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Standard ist die Spielart Original ohne Erweiterungen. Unter Modus → Spielart: Erweitert schaltest du alle ein, unter Modus → Optionen jede einzeln.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',

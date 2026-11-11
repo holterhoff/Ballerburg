@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
-import { Game, DEFAULT_OPTIONS } from './game/engine.js';
+import { Game, DEFAULT_OPTIONS, MODES, modeOf } from './game/engine.js';
 import { sound } from './game/sound.js';
 import { SIDE_COLORS, TIME_CHOICES } from './game/render.js';
 import Stage from './components/Stage.jsx';
@@ -101,6 +101,18 @@ export default function App() {
     if (g) g.setControl(types);
   };
 
+  /** Original rules or every extension: applies to the running game at once. */
+  const pickRules = (key) => {
+    const o = { ...options, extensions: { ...MODES[key] } };
+    setOptions(o);
+    if (g) {
+      g.setOptions(o);
+      g.say(key === 'original'
+        ? 'Spielart Original: Es gelten die Regeln von Eckhard Kruse, ohne Erweiterungen.'
+        : 'Spielart Erweitert: Geschütze laufen heiß, ein Räuber zieht durchs Tal, Hänge rutschen und Burgteile stürzen ab.', 'big');
+    }
+  };
+
   const onPick = ({ x, y }, secondary) => {
     if (!g || dialog) return;
     if (g.building) {
@@ -148,6 +160,9 @@ export default function App() {
         { label: 'Spieler – Computer', checked: mode === 'human-ai', onSelect: () => setMode(['human', 'ai']) },
         { label: 'Computer – Spieler', checked: mode === 'ai-human', onSelect: () => setMode(['ai', 'human']) },
         { label: 'Computer – Computer', checked: mode === 'ai-ai', onSelect: () => setMode(['ai', 'ai']) },
+        { separator: true },
+        { label: 'Spielart: Original', checked: modeOf(options.extensions) === 'original', onSelect: () => pickRules('original') },
+        { label: 'Spielart: Erweitert', checked: modeOf(options.extensions) === 'erweitert', onSelect: () => pickRules('erweitert') },
         { separator: true },
         { label: 'Computer wählen …', onSelect: () => setDialog({ type: 'computer' }) },
         { label: 'Optionen …', onSelect: () => setDialog({ type: 'options' }) },

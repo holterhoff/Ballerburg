@@ -114,8 +114,8 @@ export const DEFAULT_OPTIONS = {
   freeBuilding: false,
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
-  /** Extensions. Landslides and falling are off so the game plays like the original; overheating is on. */
-  extensions: { landslides: false, falling: false, overheat: true, robber: true },
+  /** Extensions, all off by default: the standard game plays like the original. */
+  extensions: { landslides: false, falling: false, overheat: false, robber: false },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -123,6 +123,13 @@ export const DEFAULT_OPTIONS = {
 const rnd = (n) => Math.floor(Math.random() * n); // rand() % n
 const idiv = (a, b) => Math.trunc(a / b); // C integer division
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/** The two game modes in the menu: the original rules, or every extension switched on. */
+export const MODES = {
+  original: { landslides: false, falling: false, overheat: false, robber: false },
+  erweitert: { landslides: true, falling: true, overheat: true, robber: true },
+};
+export const modeOf = (ext) => (Object.values(ext || {}).some(Boolean) ? 'erweitert' : 'original');
 
 export class Game {
   /**
@@ -1308,6 +1315,12 @@ export class Game {
     const before = this.options.timeOfDay;
     this.options = { ...this.options, ...o, extensions: { ...this.options.extensions, ...(o.extensions || {}) } };
     if (this.options.timeOfDay !== before) this.sky = this.pickSky();
+    // switching an extension off clears what it left on the field
+    if (!this.options.extensions.robber) {
+      this.robber = null;
+      for (const o of this.objects) if (o.type === 'guard') o.alive = false;
+    }
+    if (!this.options.extensions.overheat) for (const o of this.objects) if (o.type === 'cannon') o.heat = 0;
     this.emit();
   }
 
