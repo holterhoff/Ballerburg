@@ -16,7 +16,7 @@ const OUT = 0.18; // same output scale as the music
 
 /**
  * Renders a series of envelope restarts on channel A.
- * triggers: [{ t: seconds, r: coarse envelope period }]
+ * triggers: [{ t: seconds, r: coarse envelope period, noise?: noise period 0..31 (default 31) }]
  */
 export function renderBaller(sampleRate, triggers) {
   const last = triggers[triggers.length - 1];
@@ -24,15 +24,16 @@ export function renderBaller(sampleRate, triggers) {
   const length = Math.ceil((last.t + decay(last.r) + 0.02) * sampleRate);
   const out = new Float32Array(length);
   const toneStep = CLOCK / (16 * TONE_A) / sampleRate;
-  const noiseStep = CLOCK / (16 * NOISE) / sampleRate;
+  const noiseStepOf = (tr) => CLOCK / (16 * Math.max(1, tr.noise ?? NOISE)) / sampleRate;
   let phase = 0, noiseAcc = 0, lfsr = 1, bit = 1;
-  let k = 0, start = 0, dur = decay(triggers[0].r);
+  let k = 0, start = 0, dur = decay(triggers[0].r), noiseStep = noiseStepOf(triggers[0]);
   for (let i = 0; i < length; i++) {
     const t = i / sampleRate;
     while (k + 1 < triggers.length && t >= triggers[k + 1].t) {
       k++;
       start = triggers[k].t;
       dur = decay(triggers[k].r);
+      noiseStep = noiseStepOf(triggers[k]);
     }
     phase = (phase + toneStep) % 1;
     noiseAcc += noiseStep;
@@ -57,11 +58,15 @@ export const IMPACT = [0, 1, 2, 3].map((c) => ({ t: c * 0.01, r: 22 + c * 3 }));
 
 /**
  * Original: expls(..., d) calls baller((d & 31) ^ 31) in every one of its d frames.
+ * baller(r) writes r into s_bal[5], that is register 6, the NOISE period; the envelope
+ * period stays 50*256 (about 1.6 s). So the noise sweeps from deep to bright every 32 frames
+ * at full volume, and only the last restart fades out slowly.
  * Each frame took about 20 ms (10 ms in expls, 10 ms in baller).
  */
+export const EXPLOSION_ENVELOPE = 50;
 export function explosion(d) {
   const out = [];
-  for (let i = 0; i < d; i++) out.push({ t: i * 0.02, r: ((d - 1 - i) & 31) ^ 31 });
+  for (let i = 0; i < d; i++) out.push({ t: i * 0.02, r: EXPLOSION_ENVELOPE, noise: ((d - 1 - i) & 31) ^ 31 });
   return out;
 }
 
