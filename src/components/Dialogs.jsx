@@ -142,7 +142,7 @@ export function MarketDialog({ game, onClose }) {
       <section className="gem-box">
         <h3>Markt:</h3>
         <div className="ledger">
-          {MARKET.map((m) => (
+          {MARKET.filter((m) => m.key !== 'guard' || game.options.extensions.robber).map((m) => (
             <button
               key={m.key}
               className="ledger-row buy"
@@ -365,7 +365,7 @@ const RULES = [
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
-    'Der Räuber: Ab der zweiten Runde zieht ein vermummter Räuber zwischen den Burgen hin und her. Nach jedem Zug geht er ein Stück weiter. An jeder Burgmauer stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler, steckt es in seinen Sack und macht sich auf zur anderen Burg. Wer ihn mit einer Kugel trifft, bekommt den ganzen Geldsack. Danach dauert es einige Züge, bis der nächste Räuber kommt.',
+    'Der Räuber: Ab der zweiten Runde zieht ein vermummter Räuber zwischen den Burgen hin und her. Nach jedem Zug geht er ein Stück weiter, meistens zu der Burg, die gerade besser dasteht. Dort stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler, und steckt es in seinen Sack. Wer deutlich zurückliegt, verliert höchstens ein paar Taler, und meist lässt er diese Burg ganz in Ruhe. Wer ihn mit einer Kugel trifft oder nah neben ihm einschlägt, bekommt den ganzen Geldsack. Sicherer ist eine Burgwache aus dem Markt: Sie steht vor dem Tor, fängt den Räuber, sobald er ankommt, und die Burg bekommt seinen ganzen Sack. Danach führt die Wache ihn ab und ist weg. Eine Wache kann abgeschossen werden. Danach dauert es einige Züge, bis der nächste Räuber kommt.',
   ]],
 ];
 

@@ -33,8 +33,13 @@ export const HEAT_MAX = 3;
 export const ROBBER = {
   width: 12, height: 16,
   stepMin: 22, stepMax: 55, // pixels per move
-  stealMin: 15, stealMax: 30, stealCap: 250, // per cent of the treasury, at most stealCap
+  stealMin: 15, stealMax: 30, stealCap: 250, // per cent of the treasury of the stronger side, at most stealCap
+  weakMin: 3, weakMax: 8, weakCap: 60, // the clearly weaker side loses much less
+  weakRatio: 0.75, // a side is clearly weaker below this share of the other side's wealth
+  aiChance: 25, // per cent: the computer shoots at a robber who carries loot or comes for it
   firstMoves: 2, respawnMin: 4, respawnMax: 8, // moves until he (re)appears
+  flyPad: 3, // a ball flying this close past him catches him
+  blastPad: 12, // an impact this close scares him off and he drops his sack
   walkSpeed: 26, // pixels per second while he walks on screen
 };
 import { recordResult } from './scores.js';
@@ -52,11 +57,13 @@ export const MARKET = [
   { key: 'vane', label: 'Windfahne' },
   { key: 'powder', label: '30 Pulver' },
   { key: 'balls', label: '2 Kugeln' },
+  /** Extension "robber": a guard in front of the wall catches the robber once. */
+  { key: 'guard', label: 'Burgwache' },
 ];
-const START_PRICES = [200, 500, 400, 150, 50, 50];
-const PRICE_MIN = [98, 347, 302, 102, 30, 29];
-const PRICE_MAX = [302, 707, 498, 200, 89, 91];
-const PRICE_SWING = [10, 50, 50, 20, 10, 10];
+const START_PRICES = [200, 500, 400, 150, 50, 50, 150];
+const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110];
+const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200];
+const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20];
 const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
@@ -92,7 +99,7 @@ export const STRATEGIES = [
 
 export const OBJECT_NAMES = {
   king: 'König', cannon: 'Geschütz', powder: 'Pulverkammer', balls: 'Kugelkammer',
-  gold: 'Schatzkammer', vane: 'Windfahne', mine: 'Förderturm',
+  gold: 'Schatzkammer', vane: 'Windfahne', mine: 'Förderturm', guard: 'Burgwache',
 };
 const CHAMBERS = ['gold', 'powder', 'balls'];
 
@@ -485,7 +492,7 @@ export class Game {
       this.endFlight(pr);
       return;
     }
-    if (this.robberAt(pr.x, pr.y, 1)) {
+    if (this.robberAt(pr.x, pr.y, ROBBER.flyPad)) {
       this.endFlight(pr);
       this.flashes.push({ x: pr.x, y: pr.y, r: 12, t: 0, life: 0.4 });
       this.catchRobber(pr.owner);
@@ -533,11 +540,12 @@ export class Game {
           if (o.type === 'cannon' && this.near(o, x, y, 2)) this.destroy(o, by);
           else if (o.type === 'mine' && this.near(o, x, y, 2)) { this.hitMine(o, by); stop = true; }
           else if (o.type === 'vane' && this.near(o, x, y, 3)) this.destroy(o, by);
+          else if (o.type === 'guard' && this.near(o, x, y, 2)) this.destroy(o, by);
           else if (o.type === 'king' && (o.hit ? x > o.hit.x && x < o.hit.x + o.hit.w && y > o.hit.y && y < o.hit.y + o.hit.h : this.near(o, x, y, 3))) { this.destroy(o, by); stop = true; }
           else if (CHAMBERS.includes(o.type) && this.near(o, x, y, 3)) { this.hitChamber(o, by); stop = true; }
         }
       }
-      if (this.robberAt(x, y, 6)) this.catchRobber(by);
+      if (this.robberAt(x, y, ROBBER.blastPad)) this.catchRobber(by);
       if (stop || this.phase === 'over') break;
       x += vx;
       y -= vy;
@@ -696,28 +704,75 @@ export class Game {
     const r = this.robber;
     if (!r) {
       if (--this.robberWait > 0) return;
-      const target = rnd(2);
+      const target = this.robberTarget();
       const x = W / 2 + rnd(121) - 60;
       this.robber = { x, shownX: x, target, dir: target ? 1 : -1, loot: 0 };
       this.say(`Ein Räuber schleicht durchs Tal! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`, 'warn');
       return;
     }
     const step = ROBBER.stepMin + rnd(ROBBER.stepMax - ROBBER.stepMin);
+    // he does not waste his time on a castle that is already on its knees
+    if (this.isWeaker(r.target) && rnd(2) === 0) {
+      r.target = 1 - r.target;
+      this.say(`Bei ${this.players[1 - r.target].name} ist nicht mehr viel zu holen. Der Räuber schleicht zur Burg von ${this.players[r.target].name}.`);
+    }
     const goal = this.robberGoal(r.target);
     r.dir = goal > r.x ? 1 : -1;
     r.x = Math.abs(goal - r.x) <= step ? goal : r.x + r.dir * step;
     if (r.x === goal) this.robberSteals(this.players[r.target]);
   }
 
+  /** Where a guard stands: right in front of the castle wall, before the first shaft tower. */
+  guardSpot(p) {
+    const [w, h] = SIZES.guard;
+    const x = p.idx === 0 ? p.width + 1 : W - p.width - 1 - w;
+    let base = 0;
+    for (let i = x; i < x + w; i++) base = Math.max(base, this.groundAt(i));
+    const y = base - h;
+    if (y < 0) return null;
+    for (const o of this.objects) if (o.alive && o.x < x + w && o.x + o.w > x && o.y < base && o.y + o.h > y) return null;
+    return { x, y };
+  }
+
+  /** Is this side clearly weaker than the other one (by the wealth used at the round limit)? */
+  isWeaker(side) {
+    const me = this.wealth(this.players[side]), other = this.wealth(this.players[1 - side]);
+    return me < other * ROBBER.weakRatio;
+  }
+
+  /** The robber prefers the stronger side: 85 % when one side is clearly ahead, else 60 %. */
+  robberTarget() {
+    const [a, b] = this.players.map((pl) => this.wealth(pl));
+    const strong = a >= b ? 0 : 1;
+    const clear = this.isWeaker(1 - strong);
+    return rnd(100) < (clear ? 85 : 60) ? strong : 1 - strong;
+  }
+
   robberSteals(p) {
     const r = this.robber;
-    const want = idiv(p.money * (ROBBER.stealMin + rnd(ROBBER.stealMax - ROBBER.stealMin + 1)), 100);
-    const amount = Math.min(p.money, ROBBER.stealCap, Math.max(want, 20));
+    const guard = this.objectsOf(p.idx, 'guard')[0];
+    if (guard) {
+      // the guard catches him: the castle gets his sack, the guard has done his duty and leaves
+      guard.alive = false;
+      this.robber = null;
+      this.robberWait = ROBBER.respawnMin + rnd(ROBBER.respawnMax - ROBBER.respawnMin + 1);
+      p.money += r.loot;
+      p.robbersCaught = (p.robbersCaught || 0) + 1;
+      this.say(r.loot > 0
+        ? `Die Burgwache von ${p.name} fängt den Räuber! Sein ganzer Geldsack geht an die Burg: ${r.loot} Taler. Die Wache führt ihn ab.`
+        : `Die Burgwache von ${p.name} fängt den Räuber und führt ihn ab. Sein Sack war leer.`, 'big');
+      return;
+    }
+    // the stronger side loses a good part of its gold, the clearly weaker side only a little
+    const weak = this.isWeaker(p.idx);
+    const [lo, hi, cap] = weak ? [ROBBER.weakMin, ROBBER.weakMax, ROBBER.weakCap] : [ROBBER.stealMin, ROBBER.stealMax, ROBBER.stealCap];
+    const want = idiv(p.money * (lo + rnd(hi - lo + 1)), 100);
+    const amount = Math.min(p.money, cap, Math.max(want, weak ? 0 : 20));
     p.money -= amount;
     r.loot += amount;
     p.robbed = (p.robbed || 0) + amount;
-    // and off he goes to the other castle
-    r.target = 1 - p.idx;
+    // then he looks for the next victim, mostly the stronger side
+    r.target = this.robberTarget();
     this.say(amount > 0
       ? `Der Räuber hat ${amount} Taler aus der Schatzkammer von ${p.name} gestohlen! In seinem Sack sind jetzt ${r.loot} Taler.`
       : `Der Räuber findet bei ${p.name} keinen Taler und zieht fluchend weiter.`, 'warn');
@@ -861,6 +916,7 @@ export class Game {
       case 'vane': return !this.hasVane(p.idx) && !!p.vaneSlot;
       case 'powder': return p.powder < p.caps.powder;
       case 'balls': return p.balls < p.caps.balls;
+      case 'guard': return this.options.extensions.robber && !this.objectsOf(p.idx, 'guard').length && !!this.guardSpot(p);
       default: return false;
     }
   }
@@ -895,6 +951,12 @@ export class Game {
       case 'balls':
         p.balls = Math.min(p.caps.balls, p.balls + 2);
         break;
+      case 'guard': {
+        const s = this.guardSpot(p);
+        this.addObject('guard', p.idx, s.x, s.y);
+        this.say(`${p.name} stellt eine Burgwache vor das Tor.`);
+        break;
+      }
     }
     if (p.type === 'human') sound.coin();
     this.emit();
@@ -1109,6 +1171,8 @@ export class Game {
     if (!p.balls && p.money >= this.prices.balls) this.buy('balls');
     if (!this.objectsOf(n, 'cannon').length && p.money >= this.prices.cannon && this.freeCannonSlot(p)) this.buy('cannon');
     if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
+    // Extension "robber": hire a guard when the robber is heading this way and there is gold to lose
+    if (this.robber && this.robber.target === n && p.money >= this.prices.guard + 100 && this.canBuy('guard', p)) this.buy('guard');
 
     // Extension: the computer never fires a red-hot cannon; with none left it sits out
     const cannons = this.objectsOf(n, 'cannon').filter((c) => !this.options.extensions.overheat || (c.heat || 0) < HEAT_MAX);
@@ -1132,6 +1196,13 @@ export class Game {
     };
     const t0 = rnd(100);
     if (p.strategy) target.king();
+    // Extension "robber": now and then the computer goes for the robber, if he carries loot or comes this way
+    const rb = this.robber;
+    let robberShot = false;
+    if (rb && (rb.loot >= 60 || rb.target === n) && rnd(100) < ROBBER.aiChance) {
+      [zx, zy] = [rb.x, this.groundAt(rb.x) - 6];
+      robberShot = true;
+    }
     switch (p.strategy) {
       case 1: if (t0 < 30) target.gold(); if (t0 > 60) target.stores(); break;
       case 2: target.cannons(); if (t0 < 90) target.gold(); break;
@@ -1143,6 +1214,7 @@ export class Game {
       case 5: target.cannons(); if (t0 < 90) target.mines(); break;
       default: break;
     }
+    if (robberShot) [zx, zy] = [rb.x, this.groundAt(rb.x) - 6];
 
     // Original: the strength decides how far the computer misses (cx in 0..3).
     const spread = 49 - (p.strength - 1) * 16;

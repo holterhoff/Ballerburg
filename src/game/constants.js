@@ -33,6 +33,7 @@ export const SIZES = {
   gold: [8, 8],
   vane: [4, 20],
   mine: [16, 24],
+  guard: [6, 16],
 };
 
 export const AIR = 0;

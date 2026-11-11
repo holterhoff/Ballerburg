@@ -243,6 +243,61 @@ function line(c, x0, y0, x1, y1) {
   }
 }
 
+/** Extension "robber": the castle guard (pixel art made with Higgsfield), red row for the left castle, blue for the right. */
+const GUARD_IMG = typeof Image !== 'undefined' ? new Image() : null;
+if (GUARD_IMG) GUARD_IMG.src = `${import.meta.env.BASE_URL}sprites/burgwache.png`;
+const GUARD_FRAME = [18, 48];
+
+function drawGuard(c, o, pal, t) {
+  if (GUARD_IMG?.complete && GUARD_IMG.naturalWidth) {
+    const w = GUARD_FRAME[0] / RES, h = GUARD_FRAME[1] / RES;
+    const frame = Math.floor(t * 0.8) % 2;
+    c.save();
+    c.imageSmoothingEnabled = false;
+    c.translate(o.x + o.w / 2, o.y + o.h - h);
+    if (o.owner === 1) c.scale(-1, 1); // both guards look out into the valley
+    c.drawImage(GUARD_IMG, frame * GUARD_FRAME[0], o.owner * GUARD_FRAME[1], GUARD_FRAME[0], GUARD_FRAME[1], -w / 2, 0, w, h);
+    c.restore();
+    return;
+  }
+  drawGuardPixels(c, o, pal, t);
+}
+
+/** Drawn guard while the sprite is still loading. */
+function drawGuardPixels(c, o, pal, t) {
+  const x = o.x, y = o.y | 0;
+  const out = o.owner === 0 ? 1 : -1; // he faces the valley
+  const X = (dx) => (out > 0 ? x + dx : x + o.w - 1 - dx);
+  // helmet
+  c.fillStyle = '#9aa3ad';
+  px(c, X(2), y + 1, 1, 1); px(c, X(3), y + 1, 1, 1); px(c, X(4), y + 1, 1, 1);
+  px(c, X(1), y + 2, 1, 1); px(c, X(2), y + 2, 1, 1); px(c, X(3), y + 2, 1, 1); px(c, X(4), y + 2, 1, 1); px(c, X(5), y + 2, 1, 1);
+  c.fillStyle = '#d8dee6';
+  px(c, X(3), y, 1, 1);
+  // face
+  c.fillStyle = '#efc19a';
+  for (let dx = 2; dx <= 4; dx++) px(c, X(dx), y + 3, 1, 2);
+  c.fillStyle = '#1d1b22';
+  px(c, X(4), y + 3, 1, 1);
+  // tunic in the castle colours
+  c.fillStyle = pal.main;
+  for (let dx = 1; dx <= 5; dx++) px(c, X(dx), y + 5, 1, 5);
+  c.fillStyle = pal.dark;
+  px(c, X(3), y + 5, 1, 5);
+  c.fillStyle = '#5a3a22';
+  for (let dx = 1; dx <= 5; dx++) px(c, X(dx), y + 8, 1, 1);
+  // legs, a little step now and then
+  const step = Math.floor(t * 1.3) % 4 === 0 ? 1 : 0;
+  c.fillStyle = '#3a3440';
+  px(c, X(2 - step), y + 10, 1, 4); px(c, X(4), y + 10, 1, 4);
+  // halberd
+  c.fillStyle = '#8a6a4a';
+  px(c, X(6), y + 1, 1, 13);
+  c.fillStyle = '#c9ced6';
+  px(c, X(6), y - 1, 1, 2);
+  px(c, X(5), y + 1, 1, 2);
+}
+
 function drawKing(c, x, y, pal, t) {
   c.fillStyle = '#f2c94c';
   px(c, x + 3, y); px(c, x + 6, y); px(c, x + 8, y);
@@ -541,6 +596,7 @@ export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = fals
   const x = o.x | 0, y = o.y | 0;
   switch (o.type) {
     case 'king': return drawKing(c, x, y, pal, t);
+    case 'guard': return drawGuard(c, o, pal, t);
     case 'cannon': return drawCannon(c, o, pal, angle, highlight, heat, t);
     case 'powder': return stock ? drawChamber(c, o, 'powder', stock.powder, t) : drawPowder(c, x, y);
     case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
