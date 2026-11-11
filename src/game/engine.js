@@ -37,7 +37,7 @@ export const ROBBER = {
   weakMin: 3, weakMax: 8, weakCap: 60, // the clearly weaker side loses much less
   weakRatio: 0.75, // a side is clearly weaker below this share of the other side's wealth
   aiChance: 25, // per cent: the computer shoots at a robber who carries loot or comes for it
-  firstMoves: 2, respawnMin: 4, respawnMax: 8, // moves until he (re)appears
+  firstMoves: 2, respawnMin: 2, respawnMax: 3, // moves until he (re)appears: he always comes back after a round or so
   flyPad: 3, // a ball flying this close past him catches him
   blastPad: 12, // an impact this close scares him off and he drops his sack
   walkSpeed: 26, // pixels per second while he walks on screen
@@ -707,7 +707,10 @@ export class Game {
       const target = this.robberTarget();
       const x = W / 2 + rnd(121) - 60;
       this.robber = { x, shownX: x, target, dir: target ? 1 : -1, loot: 0 };
-      this.say(`Ein Räuber schleicht durchs Tal! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`, 'warn');
+      this.robbersSeen = (this.robbersSeen || 0) + 1;
+      this.say(this.robbersSeen > 1
+        ? `Ein neuer Räuber taucht auf! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`
+        : `Ein Räuber schleicht durchs Tal! Er hat es auf die Burg von ${this.players[target].name} abgesehen.`, 'warn');
       return;
     }
     const step = ROBBER.stepMin + rnd(ROBBER.stepMax - ROBBER.stepMin);
@@ -759,8 +762,8 @@ export class Game {
       p.money += r.loot;
       p.robbersCaught = (p.robbersCaught || 0) + 1;
       this.say(r.loot > 0
-        ? `Die Burgwache von ${p.name} fängt den Räuber! Sein ganzer Geldsack geht an die Burg: ${r.loot} Taler. Die Wache führt ihn ab.`
-        : `Die Burgwache von ${p.name} fängt den Räuber und führt ihn ab. Sein Sack war leer.`, 'big');
+        ? `Die Burgwache von ${p.name} fängt den Räuber! Sein ganzer Geldsack geht an die Burg: ${r.loot} Taler. Die Wache führt ihn ab. Lange wird es nicht dauern, bis der nächste kommt.`
+        : `Die Burgwache von ${p.name} fängt den Räuber und führt ihn ab. Sein Sack war leer. Der nächste kommt bestimmt.`, 'big');
       return;
     }
     // the stronger side loses a good part of its gold, the clearly weaker side only a little
