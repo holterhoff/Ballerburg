@@ -757,8 +757,9 @@ export class Game {
       return;
     }
     const step = ROBBER.stepMin + rnd(ROBBER.stepMax - ROBBER.stepMin);
-    // he does not waste his time on a castle that is already on its knees
-    if (this.isWeaker(r.target) && rnd(2) === 0) {
+    // on his first way he does not waste his time on a castle that is already on its knees;
+    // once he has robbed a castle he always walks on to the other one, so he never sticks to one wall
+    if (!r.robbed && this.isWeaker(r.target) && rnd(2) === 0) {
       r.target = 1 - r.target;
       this.say(`Bei ${this.players[1 - r.target].name} ist nicht mehr viel zu holen. Der Räuber schleicht zur Burg von ${this.players[r.target].name}.`);
     }
@@ -826,8 +827,9 @@ export class Game {
     p.money -= amount;
     r.loot += amount;
     p.robbed = (p.robbed || 0) + amount;
-    // then he looks for the next victim, mostly the stronger side
-    r.target = this.robberTarget();
+    // then he always walks over to the other castle: the robber keeps going back and forth
+    r.robbed = true;
+    r.target = 1 - p.idx;
     this.say(amount > 0
       ? `Der Räuber hat ${amount} Taler aus der Schatzkammer von ${p.name} gestohlen! In seinem Sack sind jetzt ${r.loot} Taler.`
       : `Der Räuber findet bei ${p.name} keinen Taler und zieht fluchend weiter.`, 'warn');
