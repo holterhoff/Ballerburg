@@ -26,7 +26,7 @@ const HEAT_TEXT = [
 ];
 
 /** Original: sch_obj() in cannoneer.c — angle 0..180 in steps of 1 and 10, powder 5..20 in steps of 1 and 3. */
-export function AimDialog({ cannon, game, onFire, onCancel }) {
+export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCancel }) {
   const p = game.cur;
   const maxPowder = Math.max(POWDER_MIN, Math.min(POWDER_MAX, p.powder));
   const [angle, setAngle] = useState(cannon.aim.angle);
@@ -88,6 +88,17 @@ export function AimDialog({ cannon, game, onFire, onCancel }) {
 
   return (
     <Dialog title="Geschütz ausrichten" onClose={onCancel} className="aim">
+      {cannons.length > 1 && (() => {
+        const i = cannons.indexOf(cannon.id);
+        const go = (d) => onSwitch(cannons[(i + d + cannons.length) % cannons.length]);
+        return (
+          <div className="gem-spinner aim-switch">
+            <button type="button" className="gem-arrow" aria-label="Vorheriges Geschütz" onClick={() => go(-1)}>◂</button>
+            <span className="aim-switch-label">Geschütz {i + 1} von {cannons.length}</span>
+            <button type="button" className="gem-arrow" aria-label="Nächstes Geschütz" onClick={() => go(1)}>▸</button>
+          </div>
+        );
+      })()}
       <div className="aim-grid">
         <div className="aim-controls">
           <Spinner label="Winkel" value={angle} onChange={setAngle} min={0} max={ANGLE_MAX} coarse={10} unit="°" />

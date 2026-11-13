@@ -119,7 +119,25 @@ export default function App() {
     }
   };
 
-  const onPick = ({ x, y }, secondary) => {
+  const own = g && humanTurn ? g.objectsOf(g.current) : [];
+  const cannons = own.filter((o) => o.type === 'cannon').sort((a, b) => a.x - b.x);
+  const hasStore = own.some((o) => ['gold', 'powder', 'balls'].includes(o.type));
+  const hasKing = own.some((o) => o.type === 'king');
+
+  const openCannon = (id) => {
+    const problem = g.shotProblem();
+    if (problem) { setDialog({ type: 'notice', text: problem }); return; }
+    g.selected = id;
+    setDialog({ type: 'aim', id });
+  };
+  const openMarket = () => setDialog({ type: 'market' });
+  const openKing = () => { const r = g.audience(); if (r) setDialog({ type: 'king', result: r }); };
+
+  /**
+   * A click or tap on the field. `tol` is how many world pixels a finger may miss by: on a phone a
+   * cannon is only a few screen pixels wide, so the nearest own cannon, chamber or king within reach wins.
+   */
+  const onPick = ({ x, y }, secondary, tol = 4) => {
     if (!g || dialog) return;
     if (g.building) {
       if (secondary) g.stopBuilding();
@@ -127,16 +145,14 @@ export default function App() {
       return;
     }
     if (!humanTurn || secondary) return;
-    const own = g.objectsOf(g.current);
-    const hit = (types, r) => own.find((o) => types.includes(o.type) && g.near(o, x, y, r));
-    const cannon = hit(['cannon'], 4);
-    if (cannon) {
-      const problem = g.shotProblem();
-      setDialog(problem ? { type: 'notice', text: problem } : { type: 'aim', id: cannon.id });
-      return;
-    }
-    if (hit(['gold', 'powder', 'balls'], 4)) { setDialog({ type: 'market' }); return; }
-    if (hit(['king'], 4)) { const r = g.audience(); if (r) setDialog({ type: 'king', result: r }); }
+    const dist = (o) => Math.hypot(Math.max(o.x - x, 0, x - (o.x + o.w)), Math.max(o.y - y, 0, y - (o.y + o.h)));
+    const target = own
+      .filter((o) => ['cannon', 'gold', 'powder', 'balls', 'king'].includes(o.type) && dist(o) <= tol)
+      .sort((a, b) => dist(a) - dist(b))[0];
+    if (!target) return;
+    if (target.type === 'cannon') openCannon(target.id);
+    else if (target.type === 'king') openKing();
+    else openMarket();
   };
 
   useEffect(() => {
@@ -200,9 +216,19 @@ export default function App() {
       <MenuBar menus={menus} />
       <main id="spielfeld" className="desk-main">
         {g && (
+          <div className="play">
           <div className="screen">
             <Stage game={g} onPick={onPick} />
+            <div className="roundbox">Runde {g.round}</div>
+            {g.building && (
+              <div className="buildbox" role="status">
+                <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
+                <button className="gem-btn" onClick={() => g.stopBuilding()}>Fertig</button>
+              </div>
+            )}
+          </div>
 
+          <div className="hud">
             <div className={`infobox ${g.current === 1 ? 'side-right' : 'side-left'}`} style={{ '--side': SIDE_COLORS[g.current].main }}>
               <div className="info-who"><b>{p.name}</b><br />{over ? 'Spiel beendet' : 'ist am Zug …'}</div>
               <div className="info-wind">
@@ -213,18 +239,15 @@ export default function App() {
               <button className="gem-btn info-done" disabled={!humanTurn || g.hasFired} onClick={() => g.pass()}>Fertig</button>
             </div>
 
-            <div className="roundbox">Runde {g.round}</div>
-            {g.building && (
-              <div className="buildbox" role="status">
-                <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
-                <button className="gem-btn" onClick={() => g.stopBuilding()}>Fertig</button>
-              </div>
-            )}
-          </div>
-        )}
+            {/* phones: big buttons instead of tapping tiny castle parts */}
+            <div className="actionbar" role="toolbar" aria-label="Spielzüge">
+              <button className="gem-btn" disabled={!humanTurn || g.hasFired || !cannons.length}
+                onClick={() => openCannon((cannons.find((c) => c.id === g.selected) || cannons[0]).id)}>Schießen</button>
+              <button className="gem-btn" disabled={!humanTurn || !hasStore} onClick={openMarket}>Markt</button>
+              <button className="gem-btn" disabled={!humanTurn || !hasKing} onClick={openKing}>König</button>
+              <button className="gem-btn default" disabled={!humanTurn || g.hasFired} onClick={() => g.pass()}>Fertig</button>
+            </div>
 
-        {g && <p className="turn-hint">Tipp: Halte das Gerät quer, dann wird das Spielfeld größer.</p>}
-        {g && (
           <section className="statusline" aria-live="polite">
             {advice ? (
               <span className={`advice ${advice.level}`}><b>Der König:</b> {advice.text}</span>
@@ -235,13 +258,19 @@ export default function App() {
             </span>}
             {lastMsg && <span className={`msg ${lastMsg.tone}`}>{lastMsg.text}</span>}
           </section>
+          </div>
+          </div>
         )}
+        {g && <p className="turn-hint">Tipp: Quer gehalten wird das Spielfeld größer.</p>}
       </main>
 
       {dialog?.type === 'notice' && <Notice text={dialog.text} onClose={close} />}
       {dialog?.type === 'aim' && g && (
         <AimDialog
+          key={dialog.id}
           cannon={g.obj(dialog.id)}
+          cannons={cannons.map((c) => c.id)}
+          onSwitch={(id) => { g.selected = id; setDialog({ type: 'aim', id }); }}
           game={g}
           onCancel={close}
           onFire={(a, pw) => { close(); if (!g.fire(dialog.id, a, pw)) sound.error(); }}

@@ -56,18 +56,23 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 
 /* ---------- playfield ---------- */
 .desk-main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 12px 16px; gap: 8px; }
+.play { position: relative; width: min(100%, calc((100dvh - 120px) * 1.6), 1280px); display: flex; flex-direction: column; gap: 8px; }
+/* desktop: the info box floats over the field, the status line sits below it */
+.hud { display: contents; }
+.actionbar { display: none; }
 .screen {
   position: relative;
-  width: min(100%, calc((100dvh - 120px) * 1.6), 1280px);
+  width: 100%;
   aspect-ratio: 16 / 10;
   border: 2px solid var(--ink);
   box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.45);
   background: #15122a;
 }
-.stage-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: crosshair; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.stage-canvas.building { touch-action: none; }
+.stage-canvas { display: block; width: 100%; height: 100%; image-rendering: pixelated; cursor: crosshair; touch-action: pan-x pan-y pinch-zoom; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
 
 .infobox {
-  position: absolute; left: 1%; top: 1.5%; z-index: var(--z-hud);
+  position: absolute; left: 1%; top: 8px; z-index: var(--z-hud);
   width: clamp(150px, 24%, 230px);
   background: var(--paper); border: 2px solid var(--ink); box-shadow: 3px 3px 0 var(--ink);
   font-size: clamp(14px, 1.6vw, 20px);
@@ -86,7 +91,7 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .buildbox .gem-btn { padding: 0 10px; flex: none; }
 
 .statusline {
-  width: min(100%, calc((100dvh - 120px) * 1.6), 1280px);
+  width: 100%;
   background: var(--paper); border: 2px solid var(--ink); padding: 3px 10px;
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; min-height: 32px;
 }
@@ -175,12 +180,6 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   body { font-size: 18px; }
   .setup-cols, .aim-grid { grid-template-columns: 1fr; }
   .ledger { grid-template-columns: 1fr; }
-  .infobox { position: static; width: auto; box-shadow: none; display: grid; grid-template-columns: 1fr 1fr auto; align-items: center; border-width: 2px 0 0; }
-  .info-who, .info-wind { border-bottom: 0; }
-  .infobox.side-left { grid-template-columns: auto 1fr 1fr; }
-  .infobox.side-left .info-done { order: -1; }
-  .screen { display: flex; flex-direction: column; aspect-ratio: auto; }
-  .stage-canvas { aspect-ratio: 16 / 10; height: auto; }
   .roundbox { top: 4px; bottom: auto; }
 }
 
@@ -190,19 +189,41 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 
 .castle-select { font: inherit; font-weight: bold; padding: 2px 4px; border: 2px solid #000; background: #fff; max-width: 70%; }
 
-/* ---------- phones held sideways: the field takes the whole height ---------- */
-@media (max-height: 540px) and (orientation: landscape) {
-  .gem-menubar { font-size: 15px; }
-  .gem-title { padding: 2px 8px 1px; }
-  .desk-main { padding: 4px 8px; gap: 4px; }
-  .screen, .statusline { width: min(100%, calc((100dvh - 64px) * 1.6), 1280px); }
+/* ---------- phones: field first, then a panel with big buttons ---------- */
+@media (max-width: 720px), (max-height: 540px) and (orientation: landscape) {
+  .gem-menubar > ul { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
+  .gem-title { padding: 6px 9px 5px; white-space: nowrap; }
   .screen { box-shadow: none; }
-  .statusline { font-size: 13px; min-height: 0; padding: 1px 8px; flex-wrap: nowrap; }
-  .statusline > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .statusline .hint { display: none; }
-  .infobox { width: clamp(108px, 21%, 170px); font-size: 12px; box-shadow: 2px 2px 0 var(--ink); }
-  .info-done { margin: 2px; padding: 0; }
-  .roundbox, .buildbox { font-size: 12px; }
+  .hud { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .infobox { position: static; width: auto; box-shadow: none; display: grid; grid-template-columns: 1fr auto; align-items: center; font-size: 17px; }
+  .info-who, .info-wind { border-bottom: 0; }
+  .infobox.side-right .info-who { border-right: 0; border-left: 6px solid var(--side); text-align: left; }
+  .info-done { display: none; }
+  .wind-gauge { width: 40px; height: 34px; }
+  .actionbar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .actionbar .gem-btn { min-width: 0; min-height: 48px; padding: 4px 2px; font-size: 20px; touch-action: manipulation; }
+  .statusline { font-size: 17px; }
+  .aim-switch { justify-content: space-between; }
+  .aim-switch .gem-arrow, .gem-spinner .gem-arrow { min-width: 40px; min-height: 36px; }
+}
+
+/* ---------- phones held sideways: field on the left at full height, panel on the right ---------- */
+@media (max-height: 540px) and (orientation: landscape) {
+  .desk { height: 100dvh; min-height: 0; overflow: hidden; }
+  .gem-menubar { font-size: 16px; }
+  .gem-title { padding: 3px 9px 2px; }
+  .desk-main { flex: 1; min-height: 0; padding: 4px 6px; }
+  .play { flex-direction: row; width: 100%; height: 100%; gap: 6px; }
+  .screen { flex: none; align-self: flex-start; width: min(calc((100dvh - 36px) * 1.6), calc(100vw - 196px)); }
+  .hud { flex: 1; overflow-y: auto; }
+  .infobox { grid-template-columns: 1fr; font-size: 15px; }
+  .info-wind { border-top: 2px solid var(--ink); }
+  .actionbar { grid-template-columns: 1fr 1fr; gap: 4px; }
+  .actionbar .gem-btn { min-height: 42px; font-size: 18px; }
+  .statusline { flex: 1; font-size: 14px; padding: 2px 6px; align-content: flex-start; }
+  .roundbox, .buildbox { font-size: 13px; }
+  .gem-dialog { padding: 8px 10px; }
+  .aim-grid { grid-template-columns: 1fr 210px; }
 }
 
 /* ---------- phones held upright: a hint to turn the device ---------- */
@@ -210,5 +231,5 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 @media (max-width: 600px) and (orientation: portrait) {
   .turn-hint { display: block; text-align: center; font-size: 15px; color: var(--paper); margin: 4px 0 0; }
   .desk-main { padding: 6px 6px 12px; }
-  .screen, .statusline { width: 100%; }
+  .play { width: 100%; }
 }
