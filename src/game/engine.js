@@ -228,7 +228,8 @@ export class Game {
     });
 
     // original: wnd = rand()%60-30; prices p[j] = pr[j]*(95+rand()%11)/100
-    this.wind = rnd(40) - 20; // original: rand()%60-30; Neufassung: a third weaker, the mountains fly higher
+    // original: rand()%60-30; mode Erweitert: a third weaker, the mountains fly higher
+    this.wind = this.originalWind() ? rnd(60) - 30 : rnd(40) - 20;
     this.prices = Object.fromEntries(MARKET.map((m, j) => [m.key, idiv(START_PRICES[j] * (95 + rnd(11)), 100)]));
     this.move = 0; // original: zug
     this.round = 1;
@@ -344,11 +345,15 @@ export class Game {
     const p = this.cur;
     // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
     p.visitedThisTurn = false;
-    // original: wnd*9/10 + rand()%12-6; Neufassung: smaller changes, never above WIND_MAX
+    // original: wnd*9/10 + rand()%12-6; mode Erweitert: smaller changes, never above WIND_MAX
     // Extension "storm": during a storm the wind changes more and may blow harder
     const storm = this.options.extensions.storm && this.weather === 'gewitter';
     const wmax = storm ? STORM.windMax : WIND_MAX;
-    if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + (storm ? rnd(15) - 7 : rnd(9) - 4), -wmax, wmax);
+    if (this.move > 0) {
+      this.wind = this.originalWind()
+        ? idiv(this.wind * 9, 10) + rnd(12) - 6
+        : clamp(idiv(this.wind * 9, 10) + (storm ? rnd(15) - 7 : rnd(9) - 4), -wmax, wmax);
+    }
     this.hasFired = false;
     this.firedCannon = null;
     this.building = null;
@@ -535,6 +540,11 @@ export class Game {
     this.building = null;
     this.emit();
     return true;
+  }
+
+  /** Mode Original blows the wind exactly as Eckhard Kruse did; mode Erweitert keeps it weaker. */
+  originalWind() {
+    return modeOf(this.options.extensions) === 'original';
   }
 
   /** Original: the flight loop in schuss(). One call is one flight step. */
