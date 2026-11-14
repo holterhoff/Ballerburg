@@ -61,6 +61,14 @@ export const KRUSE_SAYINGS = [
  */
 export const ROASTS = [
   {
+    // Extension "storm": lightning took the weather vane
+    when: (c) => c.lightningLost > 0,
+    lines: () => [
+      'Der Blitz hat Unsere Windfahne geholt. Meister Kruse hat sie als Windmesser gebaut, nicht als Blitzableiter.',
+      'Eine Windfahne auf dem höchsten Turm, mitten im Gewitter. Meister Kruse hätte Euch das sagen können. Jetzt raten Wir den Wind wieder.',
+    ],
+  },
+  {
     // Extension "overheat": a cannon blew up or glows red
     when: (c) => c.overheats > 0 || c.redHot > 0,
     lines: (c) => c.overheats > 0 ? [

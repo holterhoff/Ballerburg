@@ -681,6 +681,63 @@ function drawSpies(c, game, t) {
   }
 }
 
+/* ---------- Extension "storm": clouds, rain and lightning ---------- */
+
+/** How dark the weather makes the scene: the warning clouds a little, the storm clearly. */
+const STORM_DARK = { wolken: [0.28, 0.1], gewitter: [0.5, 0.22] };
+
+/** A row of heavy clouds across the top that drifts with the wind. */
+function drawStormClouds(c, game, t) {
+  const k = game.weather === 'gewitter' ? 1 : 0.6;
+  const drift = t * (2 + game.wind * 0.6);
+  for (let i = 0; i < 14; i++) {
+    const w = 70 + ((i * 37) % 50);
+    const x = ((((i * 61 + drift) % (W + 140)) + W + 140) % (W + 140)) - 70;
+    const y = -14 + ((i * 23) % 26);
+    const g = c.createRadialGradient(x, y + 10, 4, x, y + 10, w * 0.6);
+    g.addColorStop(0, `rgba(${i % 3 ? 52 : 40}, ${i % 3 ? 56 : 46}, 70, ${0.85 * k})`);
+    g.addColorStop(1, 'rgba(40, 44, 58, 0)');
+    c.fillStyle = g;
+    c.fillRect(x - w, y - w * 0.5, w * 2, w * 1.2);
+  }
+}
+
+/** Slanting rain, the slant follows the wind. */
+function drawRain(c, game, t) {
+  const slant = game.wind * 0.12;
+  c.strokeStyle = 'rgba(190, 205, 230, 0.32)';
+  c.lineWidth = 1;
+  c.beginPath();
+  for (let i = 0; i < 170; i++) {
+    const fall = 300 + (i % 7) * 18;
+    const y = (i * 53 + t * fall) % (H + 10) - 5;
+    const x = ((i * 97 + y * slant * 0.25) % W + W) % W;
+    c.moveTo(x, y);
+    c.lineTo(x + slant, y + 5);
+  }
+  c.stroke();
+}
+
+function drawBolt(c, b) {
+  const k = b.t / b.life;
+  // the bolt flickers: bright, dim, bright again, then fades
+  const a = k < 0.12 ? 1 : k < 0.2 ? 0.3 : k < 0.32 ? 1 : Math.max(0, 1 - (k - 0.32) / 0.68);
+  const line = (pts) => { c.beginPath(); pts.forEach(([x, y], i) => (i ? c.lineTo(x, y) : c.moveTo(x, y))); c.stroke(); };
+  c.save();
+  c.lineJoin = 'round';
+  c.strokeStyle = `rgba(150, 180, 255, ${0.45 * a})`;
+  c.lineWidth = 4;
+  line(b.path.main);
+  c.lineWidth = 2;
+  line(b.path.branch);
+  c.strokeStyle = `rgba(255, 255, 255, ${a})`;
+  c.lineWidth = 1.4;
+  line(b.path.main);
+  c.lineWidth = 0.8;
+  line(b.path.branch);
+  c.restore();
+}
+
 export function drawScene(c, game, r, view) {
   const t = view.time;
   if (game.terrainDirty) refreshTerrain(r, game);
@@ -692,6 +749,12 @@ export function drawScene(c, game, r, view) {
     r.sky = skyKey;
   }
   c.drawImage(r.bg, 0, 0, W, H);
+  const dark = game.options?.extensions?.storm && STORM_DARK[game.weather];
+  if (dark) {
+    c.fillStyle = `rgba(22, 26, 40, ${dark[0]})`;
+    c.fillRect(0, 0, W, H);
+    drawStormClouds(c, game, t);
+  }
   // terrain, castles and objects go to a separate layer so the time-of-day light only tints them
   const sky = c;
   c = r.wctx;
@@ -727,6 +790,16 @@ export function drawScene(c, game, r, view) {
   }
   c = sky;
   c.drawImage(r.world, 0, 0, W, H);
+  if (dark) {
+    c.fillStyle = `rgba(22, 26, 40, ${dark[1]})`;
+    c.fillRect(0, 0, W, H);
+    if (game.weather === 'gewitter') drawRain(c, game, t);
+  }
+  for (const b of game.bolts || []) drawBolt(c, b);
+  if (game.skyFlash > 0.02) {
+    c.fillStyle = `rgba(225, 232, 255, ${0.45 * game.skyFlash})`;
+    c.fillRect(0, 0, W, H);
+  }
 
   const pr = game.projectile;
   if (pr) {

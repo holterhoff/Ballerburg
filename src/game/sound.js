@@ -146,6 +146,12 @@ export const sound = {
   explosion(d = 50) {
     if (d > 0) playPcm('expl' + d, explosion(d));
   },
+  /** Extension "storm": a crack and a long low rumble; strength 0..1. */
+  thunder(k = 1) {
+    noise(0.25, { freq: 2400, gain: 0.35 * k });
+    noise(2.2, { freq: 260, gain: 0.55 * k, delay: 0.08 });
+    noise(1.4, { freq: 160, gain: 0.35 * k, delay: 0.7 });
+  },
   click() {
     tone(720, 0.04, { gain: 0.04 });
   },

@@ -60,6 +60,21 @@ export const SPY = {
   aiBuy: 40, // per cent per move: the computer hires a spy against a castle with towers
   walkSpeed: 34,
 };
+/**
+ * Extension "storm": now and then a thunderstorm rolls in. Dark clouds warn one move ahead, then the
+ * storm lasts a few moves with stronger, gustier wind. Between moves lightning may come down. A bolt
+ * only ever strikes the weather vane of the stronger side; one storm destroys at most one
+ * vane. Every other bolt hits the mountain.
+ */
+export const STORM = {
+  firstMove: 6, // no storm in the first three rounds
+  chance: 8, // per cent per move with clear sky: clouds gather
+  minMoves: 4, maxMoves: 6, // moves the storm lasts
+  strike: 45, // per cent per storm move: a bolt comes down
+  kills: 1, // weather vanes one storm may destroy
+  windMax: 26, // the wind may blow harder during a storm
+  pauseMin: 8, // moves of clear sky after a storm before the next one may come
+};
 import { recordResult } from './scores.js';
 
 /** Original: anbau() lets you lay 20 bricks per purchase. */
@@ -135,7 +150,7 @@ export const DEFAULT_OPTIONS = {
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Extensions, all off by default: the standard game plays like the original. */
-  extensions: { landslides: false, falling: false, overheat: false, robber: false, spy: false },
+  extensions: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -146,8 +161,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** The two game modes in the menu: the original rules, or every extension switched on. */
 export const MODES = {
-  original: { landslides: false, falling: false, overheat: false, robber: false, spy: false },
-  erweitert: { landslides: true, falling: true, overheat: true, robber: true, spy: true },
+  original: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false },
+  erweitert: { landslides: true, falling: true, overheat: true, robber: true, spy: true, storm: true },
 };
 export const modeOf = (ext) => (Object.values(ext || {}).some(Boolean) ? 'erweitert' : 'original');
 
@@ -238,6 +253,13 @@ export class Game {
     this.robberWait = ROBBER.firstMoves;
     /** Extension "spy": at most one spy per side. */
     this.spies = [];
+    /** Extension "storm": 'klar', 'wolken' (one move of warning) or 'gewitter'. */
+    this.weather = 'klar';
+    this.stormLeft = 0;
+    this.stormKills = 0;
+    this.stormPause = 0;
+    this.bolts = [];
+    this.skyFlash = 0;
     for (const pl of this.players) pl.startWealth = Math.max(1, this.wealth(pl));
     this.terrainDirty = true;
     this.say('Eine neue Fehde beginnt.', 'big');
@@ -323,7 +345,10 @@ export class Game {
     // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
     p.visitedThisTurn = false;
     // original: wnd*9/10 + rand()%12-6; Neufassung: smaller changes, never above WIND_MAX
-    if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + rnd(9) - 4, -WIND_MAX, WIND_MAX);
+    // Extension "storm": during a storm the wind changes more and may blow harder
+    const storm = this.options.extensions.storm && this.weather === 'gewitter';
+    const wmax = storm ? STORM.windMax : WIND_MAX;
+    if (this.move > 0) this.wind = clamp(idiv(this.wind * 9, 10) + (storm ? rnd(15) - 7 : rnd(9) - 4), -wmax, wmax);
     this.hasFired = false;
     this.firedCannon = null;
     this.building = null;
@@ -369,6 +394,7 @@ export class Game {
     }
     if (this.options.extensions.robber) this.robberMove();
     if (this.options.extensions.spy) this.spyMove();
+    if (this.options.extensions.storm) this.weatherMove();
     if (this.options.maxRounds && Math.floor(this.move / 2) >= this.options.maxRounds) {
       const [a, b] = this.players.map((pl) => this.wealth(pl));
       const winner = b < a ? 0 : 1;
@@ -617,7 +643,7 @@ export class Game {
   destroy(o, by, cause = 'hit') {
     if (!o.alive) return;
     const owner = this.players[o.owner];
-    if (cause === 'hit' || cause === 'overheat') sound.explosion(EXPLOSION_FRAMES[o.type] || 0);
+    if (cause === 'hit' || cause === 'overheat' || cause === 'lightning') sound.explosion(EXPLOSION_FRAMES[o.type] || 0);
     if (o.type === 'king') {
       o.alive = false;
       this.burst(o);
@@ -631,7 +657,8 @@ export class Game {
     if (by !== undefined && by !== o.owner) this.players[by].hits++;
     const own = by === o.owner ? ' (eigener Treffer)' : '';
     if (by === o.owner) this.players[by].ownHits = (this.players[by].ownHits || 0) + 1;
-    const what = cause === 'fall' ? 'stürzt ab' : cause === 'overheat' ? 'ist heißgelaufen und explodiert' : 'zerstört';
+    const what = cause === 'fall' ? 'stürzt ab' : cause === 'overheat' ? 'ist heißgelaufen und explodiert'
+      : cause === 'lightning' ? 'vom Blitz getroffen' : 'zerstört';
     this.say(`${OBJECT_NAMES[o.type]} von ${owner.name} ${what}${own}.`, 'hit');
   }
 
@@ -850,6 +877,94 @@ export class Game {
     this.say(r.loot > 0
       ? `${p.name} hat den Räuber erwischt und bekommt seinen ganzen Geldsack: ${r.loot} Taler!`
       : `${p.name} hat den Räuber erwischt! Sein Sack war noch leer.`, 'big');
+  }
+
+  /* ======================= Extension "storm" ======================= */
+
+  /** After each move: clouds gather, the storm rages and maybe strikes, or it moves on. */
+  weatherMove() {
+    if (this.weather === 'klar') {
+      if (this.stormPause > 0) { this.stormPause--; return; }
+      if (this.move >= STORM.firstMove && rnd(100) < STORM.chance) {
+        this.weather = 'wolken';
+        this.say('Dunkle Wolken ziehen auf, ein Gewitter naht. Der Blitz sucht sich die Windfahne der stärkeren Burg.', 'warn');
+      }
+      return;
+    }
+    if (this.weather === 'wolken') {
+      this.weather = 'gewitter';
+      this.stormLeft = STORM.minMoves + rnd(STORM.maxMoves - STORM.minMoves + 1);
+      this.stormKills = 0;
+      this.say('Das Gewitter ist da! Der Wind frischt auf und dreht schneller.', 'warn');
+      sound.thunder(0.4);
+      return;
+    }
+    if (rnd(100) < STORM.strike) this.lightning();
+    if (--this.stormLeft <= 0) {
+      this.weather = 'klar';
+      this.stormPause = STORM.pauseMin;
+      this.say('Das Gewitter zieht ab.');
+    }
+  }
+
+  /**
+   * The weather vane a bolt goes for: always the one of the stronger side (measured like the robber,
+   * against the wealth at the start). Without a vane there the bolt hits the mountain, so the
+   * weaker side never loses its vane to lightning.
+   */
+  boltTarget() {
+    if (this.stormKills >= STORM.kills) return null;
+    const a = this.standing(0), b = this.standing(1);
+    const strong = a === b ? rnd(2) : a > b ? 0 : 1;
+    return this.objectsOf(strong, 'vane')[0] || null;
+  }
+
+  /** A bolt comes down: on a weather vane, or somewhere on the mountain. */
+  lightning() {
+    const c = this.boltTarget();
+    let x, y;
+    if (c) {
+      x = c.x + c.w / 2;
+      y = c.y;
+    } else {
+      const a = this.players[0].width + 15, b = W - this.players[1].width - 15;
+      x = a + rnd(Math.max(1, b - a));
+      for (let i = 0; i < 6 && this.heights[x | 0] < 8; i++) x = a + rnd(Math.max(1, b - a));
+      y = Math.max(4, this.heights[x | 0]);
+    }
+    this.bolts.push({ path: this.boltPath(x, y), t: 0, life: 0.75 });
+    this.skyFlash = 1;
+    this.flashes.push({ x, y, r: 10, t: 0, life: 0.35 });
+    sound.thunder(c ? 1 : 0.7);
+    if (c) {
+      this.stormKills++;
+      const owner = this.players[c.owner];
+      owner.lightningLost = (owner.lightningLost || 0) + 1;
+      this.destroy(c, undefined, 'lightning');
+      this.say(`Ein Blitz schlägt in die Windfahne von ${owner.name} ein. Ohne Windfahne ist der Wind nicht mehr zu sehen.`, 'hit');
+      this.shake = Math.min(7, this.shake + 4);
+    } else {
+      this.carve(x, y, 2);
+      this.terrainDirty = true;
+      this.say('Ein Blitz schlägt in den Berg ein.');
+    }
+  }
+
+  /** A jagged line from above the screen down to (x, y), with a short side branch. */
+  boltPath(x, y) {
+    const main = [];
+    let px = x + (Math.random() - 0.5) * 60;
+    const top = -6, steps = Math.max(6, Math.round((y - top) / 9));
+    for (let i = 0; i <= steps; i++) {
+      const py = top + ((y - top) * i) / steps;
+      px = i === steps ? x : px + (x - px) / (steps - i + 1) + (Math.random() - 0.5) * 10;
+      main.push([px, py]);
+    }
+    let [bx, by] = main[2 + rnd(Math.max(1, steps - 4))];
+    const branch = [[bx, by]];
+    const dirx = Math.random() < 0.5 ? -1 : 1;
+    for (let i = 0; i < 4; i++) { bx += dirx * (4 + Math.random() * 6); by += 6 + Math.random() * 5; branch.push([bx, by]); }
+    return { main, branch };
   }
 
   /* ======================= Extension "spy" ======================= */
@@ -1260,6 +1375,7 @@ export class Game {
       foeCannons: this.objectsOf(foe.idx, 'cannon').length,
       shots: p.shots, hits: p.hits, ownHits: p.ownHits || 0,
       overheats: p.overheats || 0,
+      lightningLost: p.lightningLost || 0,
       redHot: this.options.extensions.overheat ? this.objectsOf(p.idx, 'cannon').filter((c) => (c.heat || 0) >= HEAT_MAX).length : 0,
       missRate: p.shots ? 1 - p.hits / p.shots : 0,
       round: Math.floor(this.move / 2) + 1,
@@ -1498,6 +1614,7 @@ export class Game {
       this.spies = [];
       for (const o of this.objects) if (o.type === 'mine') o.lame = 0;
     }
+    if (!this.options.extensions.storm) { this.weather = 'klar'; this.stormLeft = 0; this.bolts = []; }
     this.emit();
   }
 
@@ -1535,6 +1652,11 @@ export class Game {
     this.particles = this.particles.filter((pt) => pt.life > 0 && pt.y < H + 4);
     for (const fl of this.flashes) fl.t += dt;
     for (const b of this.blasts) b.t += dt;
+    for (const b of this.bolts) b.t += dt;
+    this.bolts = this.bolts.filter((b) => b.t < b.life);
+    this.skyFlash = this.skyFlash > 0.02 ? this.skyFlash * Math.pow(0.004, dt) : 0;
+    // Extension "storm": far-off lightning flickers in the clouds now and then
+    if (this.weather === 'gewitter' && Math.random() < dt * 0.25) this.skyFlash = Math.max(this.skyFlash, 0.35 + Math.random() * 0.3);
     this.blasts = this.blasts.filter((b) => b.t < b.life);
     this.flashes = this.flashes.filter((fl) => fl.t < fl.life);
     this.shake = this.shake > 0.1 ? this.shake * Math.pow(0.02, dt) : 0;

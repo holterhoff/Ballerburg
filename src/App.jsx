@@ -115,7 +115,7 @@ export default function App() {
       g.setOptions(o);
       g.say(key === 'original'
         ? 'Spielart Original: Es gelten die Regeln von Eckhard Kruse, ohne Erweiterungen.'
-        : 'Spielart Erweitert: Geschütze laufen heiß, ein Räuber zieht durchs Tal, Hänge rutschen und Burgteile stürzen ab.', 'big');
+        : 'Spielart Erweitert: Geschütze laufen heiß, ein Räuber zieht durchs Tal, Spione lassen sich anheuern, Gewitter ziehen auf, Hänge rutschen und Burgteile stürzen ab.', 'big');
     }
   };
 
@@ -219,7 +219,7 @@ export default function App() {
           <div className="play">
           <div className="screen">
             <Stage game={g} onPick={onPick} />
-            <div className="roundbox">Runde {g.round}</div>
+            <div className="roundbox">Runde {g.round}{g.options.extensions.storm && g.weather !== 'klar' ? (g.weather === 'gewitter' ? ' · Gewitter' : ' · Wolken ziehen auf') : ''}</div>
             {g.building && (
               <div className="buildbox" role="status">
                 <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
