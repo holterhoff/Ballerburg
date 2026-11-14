@@ -375,6 +375,7 @@ const RULES = [
   ]],
   ['Erweiterungen', [
     'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Standard ist die Spielart Original ohne Erweiterungen. Unter Modus → Spielart: Erweitert schaltest du alle ein, unter Modus → Optionen jede einzeln.',
+    'Der Computer baut Fördertürme: Im Original tun das nur Baron Bombast, Hauptmann Hagen, Kämmerer Kuno und die Eiserne Erna. Sobald eine Erweiterung an ist, bauen auch die anderen Computer bis zu drei Türme und behalten dabei Geld für Pulver und Kugeln zurück.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',

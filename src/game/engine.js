@@ -1463,7 +1463,13 @@ export class Game {
     if (p.powder < 20 && p.money >= this.prices.powder) this.buy('powder');
     if (!p.balls && p.money >= this.prices.balls) this.buy('balls');
     if (!this.objectsOf(n, 'cannon').length && p.money >= this.prices.cannon && this.freeCannonSlot(p)) this.buy('cannon');
-    if (this.objectsOf(n, 'mine').length < 3 && p.money >= this.prices.mine && p.strategy > 2 && this.nextMineSpot(p)) this.buy('mine');
+    // Original: only strategies 3 to 6 build towers. Mode "Erweitert": every strategy builds them,
+    // but the others keep enough for powder and balls, as far as the treasury holds it.
+    const builder = p.strategy > 2;
+    const reserve = builder ? 0
+      : Math.min(this.prices.powder + this.prices.balls, Math.max(0, p.caps.money - this.prices.mine));
+    if ((builder || modeOf(this.options.extensions) === 'erweitert') && this.objectsOf(n, 'mine').length < 3
+        && p.money >= this.prices.mine + reserve && this.nextMineSpot(p)) this.buy('mine');
     // Extension "robber": hire a guard when the robber is heading this way and there is gold to lose
     if (this.robber && this.robber.target === n && p.money >= this.prices.guard + 100 && this.canBuy('guard', p)) this.buy('guard');
     // Extension "spy": against a castle with working towers the computer now and then hires a spy
