@@ -247,12 +247,12 @@ function StrategyPicker({ value, onChange }) {
 }
 
 /** "Neues Spiel": names, castles, battlefield. */
-export function SetupDialog({ initial, onStart, onCancel }) {
+export function SetupDialog({ initial, original, onStart, onCancel }) {
   const [sides, setSides] = useState(initial.sides);
   const terrain = 'zufall';
-  const [field, setField] = useState(() => generateTerrain(initial.terrain, initial.sides.map((s) => CASTLES[s.castle].width)));
+  const [field, setField] = useState(() => generateTerrain(initial.terrain, initial.sides.map((s) => CASTLES[s.castle].width), original));
   const ref = useRef(null);
-  const reroll = (kind = terrain, s = sides) => setField(generateTerrain(kind, s.map((x) => CASTLES[x.castle].width)));
+  const reroll = (kind = terrain, s = sides) => setField(generateTerrain(kind, s.map((x) => CASTLES[x.castle].width), original));
   useEffect(() => drawTerrainPreview(ref.current, field.heights), [field]);
   const set = (i, patch) => {
     const next = sides.map((s, j) => (j === i ? { ...s, ...patch } : s));

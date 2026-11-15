@@ -281,6 +281,7 @@ export default function App() {
       {dialog?.type === 'setup' && (
         <SetupDialog
           initial={{ sides, terrain }}
+          original={modeOf(options.extensions) === 'original'}
           onCancel={close}
           onStart={({ sides: s, terrain: t, field }) => { setSides(s); setTerrain(t); start(s, field); }}
         />

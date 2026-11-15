@@ -194,7 +194,7 @@ export class Game {
 
   newGame(cfg) {
     const widths = cfg.players.map((pc) => CASTLES[pc.castle].width);
-    const terrain = cfg.terrainData || generateTerrain(cfg.terrain || 'klassisch', widths);
+    const terrain = cfg.terrainData || generateTerrain(cfg.terrain || 'klassisch', widths, this.originalWind());
     this.sky = this.pickSky();
     this.heights = Float32Array.from(terrain.heights);
     this.baseY = terrain.baseY.slice();
@@ -206,10 +206,12 @@ export class Game {
 
     this.objects = [];
     this.nextId = 1;
+    /** Neufassung: where each castle had walls at the start, so the computer knows what to repair. */
+    this.blueprint = [new Uint8Array(W * H), new Uint8Array(W * H)];
     this.players = cfg.players.map((pc, i) => {
       const c = CASTLES[pc.castle];
       const built = buildCastle(pc.castle, i, this.baseY[i]);
-      for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) this.solid[y * W + x] = m;
+      for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) { this.solid[y * W + x] = m; this.blueprint[i][y * W + x] = 1; }
       for (const [x, y] of built.rooms) if (x >= 0 && x < W && y >= 0 && y < H) this.interior[y * W + x] = i + 1;
       built.objects.forEach((o) => {
         const obj = this.addObject(o.type, i, o.x, o.y, o.w, o.h);
@@ -1478,6 +1480,8 @@ export class Game {
     const builder = p.strategy > 2;
     const reserve = builder ? 0
       : Math.min(this.prices.powder + this.prices.balls, Math.max(0, p.caps.money - this.prices.mine));
+    // Mode "Erweitert": a damaged castle buys bricks and fills the holes in its walls
+    if (modeOf(this.options.extensions) === 'erweitert' && p.money >= this.priceOf('stones') + reserve) this.aiRepair(p);
     if ((builder || modeOf(this.options.extensions) === 'erweitert') && this.objectsOf(n, 'mine').length < 3
         && p.money >= this.prices.mine + reserve && this.nextMineSpot(p)) this.buy('mine');
     // Extension "robber": hire a guard when the robber is heading this way and there is gold to lose
@@ -1563,6 +1567,47 @@ export class Game {
       if (this.shotClearsOwnCastle(cannon, shot.vx, shot.vy)) return shot;
     }
     return aimFrom(order[0]);
+  }
+
+  /**
+   * Mode "Erweitert": the spots where a brick would close a hole in the castle's original walls,
+   * from the bottom up, so every brick rests on the one below. A spot counts once half of its
+   * 4×4 cell is missing.
+   */
+  repairSpots(n) {
+    const plan = this.blueprint?.[n];
+    if (!plan) return [];
+    const spots = [];
+    for (let y = H - CELL; y >= BUILD_MIN_Y; y -= CELL)
+      for (let x = 0; x < W; x += CELL) {
+        let gone = 0;
+        for (let j = 0; j < CELL; j++)
+          for (let i = 0; i < CELL; i++) { const k = (y + j) * W + x + i; if (plan[k] && !this.solid[k]) gone++; }
+        if (gone >= (CELL * CELL) / 2) spots.push([x + CELL / 2, y + CELL / 2]);
+      }
+    return spots;
+  }
+
+  /** Mode "Erweitert": the computer buys 20 bricks and lays them into the holes of its castle. */
+  aiRepair(p) {
+    const n = p.idx;
+    const fits = () => this.repairSpots(n).map(([x, y]) => this.brickSpot(x, y, n, false)).filter(Boolean);
+    const first = fits();
+    if (first.length < 3 || !this.canBuy('stones', p)) return; // a scratch is not worth the money
+    this.buy('stones');
+    let left = BUILD_STONES;
+    for (let list = first; left > 0 && list.length; list = fits()) {
+      let laid = 0;
+      for (const s of list) {
+        if (left <= 0) break;
+        if (!this.rectFree(s.x, s.y, s.w, s.h)) continue; // an earlier brick took the spot
+        this.fillBrick(s.x, s.y, BRICK + n);
+        left--; laid++;
+      }
+      if (!laid) break;
+    }
+    this.building = null;
+    this.say(`${p.name} bessert die Burg mit ${BUILD_STONES - left} Steinen aus.`);
   }
 
   /** Neufassung: does a shot with this start speed leave its own building zone without hitting anything? */

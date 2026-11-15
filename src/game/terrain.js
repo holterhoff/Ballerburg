@@ -6,15 +6,13 @@
 import { W, H } from './constants.js';
 
 /**
- * Neufassung: the battlefield is always random. Mostly one mountain in the original shape, low or
- * high; now and then a gorge between two rock towers. The summit always stays on the screen.
+ * The battlefield is always random: one mountain in the original shape. Mode Original keeps
+ * Kruse's height; mode Erweitert makes it lower or higher, the summit always stays on the screen.
  */
 export const TERRAINS = [{ key: 'zufall', label: 'Zufall' }];
 
 /** Highest point a summit may reach (y from the top edge), so it is always visible. */
 const PEAK_MIN_Y = 34;
-/** Share of battles fought across a gorge instead of one mountain. */
-const GORGE_CHANCE = 0.2;
 
 const rand = (a, b) => a + Math.random() * (b - a);
 const randInt = (n) => Math.floor(Math.random() * n);
@@ -31,7 +29,7 @@ function castleGround() {
  * inward by a slope (in quarter pixels) that changes by -2..+2 every row, limited to 0..7.
  * The loop stops when the flanks meet or the row reaches y = 20.
  */
-function classicMountain(h, by, widths) {
+function classicMountain(h, by, widths, original) {
   let x1 = 0;
   let x2 = 2556;
   let v1 = 2;
@@ -50,11 +48,9 @@ function classicMountain(h, by, widths) {
       x2 -= v2;
     }
   }
-  // Neufassung: stretch the mountain upward by a random factor 1.0..1.8, measured from the higher
-  // castle ground. The flank shape stays the original one, the peak ends up anywhere from
-  // the original height to near the top edge.
-  // Neufassung: scale the height between flat (0.55) and as high as the screen allows; the summit
-  // never leaves the screen.
+  if (original) return;
+  // Mode Erweitert: scale the height between flat (0.55) and as high as the screen allows,
+  // measured from the higher castle ground. The flank shape stays the original one.
   const ref = Math.min(by[0], by[1]);
   let peak = H;
   for (let x = 0; x < W; x++) peak = Math.min(peak, h[x]);
@@ -134,13 +130,14 @@ function shapeFn(kind, l, r) {
  * and the ground level each castle stands on.
  * @param {string} kind terrain key from TERRAINS
  * @param {number[]} widths width of the left and right castle (original: bg[0])
+ * @param {boolean} [original] mode Original: the mountain keeps Kruse's height
  */
-export function generateTerrain(kind = 'zufall', widths = [136, 136]) {
-  if (kind === 'zufall') kind = Math.random() < GORGE_CHANCE ? 'schlucht' : 'klassisch';
+export function generateTerrain(kind = 'zufall', widths = [136, 136], original = false) {
+  if (kind === 'zufall') kind = 'klassisch';
   const by = [castleGround(), castleGround()];
   const h = new Float32Array(W).fill(H);
   if (kind === 'klassisch') {
-    classicMountain(h, by, widths);
+    classicMountain(h, by, widths, original);
     return { heights: h, baseY: by, kind };
   }
   const l = widths[0] + rand(4, 24);
