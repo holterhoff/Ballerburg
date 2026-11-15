@@ -36,6 +36,17 @@ const hiCanvas = () => {
   return [cv, ctx];
 };
 
+/** Gives the sky and world layers the stage's pixel size; the sky is painted again on the next frame. */
+export function resizeRenderer(r, pw, ph) {
+  for (const [cv, ctx] of [[r.bg, r.bgctx], [r.world, r.wctx]]) {
+    cv.width = pw;
+    cv.height = ph;
+    ctx.setTransform(pw / W, 0, 0, ph / H, 0, 0);
+    ctx.imageSmoothingEnabled = false;
+  }
+  r.sky = null;
+}
+
 export function createRenderer() {
   const [bg, bgctx] = hiCanvas();
   const tc = canvas();

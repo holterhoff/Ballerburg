@@ -7,8 +7,14 @@
 
 export const W = 640;
 export const H = 400;
-/** Neufassung: the stage is drawn at this multiple of the 640×400 world, so round shapes look smooth. */
+/** Neufassung: the sprite sheets are drawn at this many image pixels per world pixel. */
 export const RES = 3;
+/**
+ * Neufassung: the stage is drawn at the screen's own resolution, so it stays sharp on every display.
+ * The world keeps its 640x400 pixels; only the drawing gets finer. Above this many device pixels
+ * across, the browser scales the picture up instead, so 4K screens keep a smooth frame rate.
+ */
+export const MAX_STAGE_PX = 3840;
 export const CELL = 4;
 export const COLS = 32;
 /** Default ground level when no terrain is given (the original picks 300..379 per castle). */

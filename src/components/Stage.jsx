@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
-import { W, H, RES } from '../game/constants.js';
-import { createRenderer, drawScene } from '../game/render.js';
+import { W, H, RES, MAX_STAGE_PX } from '../game/constants.js';
+import { createRenderer, drawScene, resizeRenderer } from '../game/render.js';
 
 /** Canvas that runs the game loop and turns pointer input into world coordinates. */
 export default function Stage({ game, aim, onPick }) {
@@ -18,18 +18,39 @@ export default function Stage({ game, aim, onPick }) {
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = false;
     const r = createRenderer();
+    // Neufassung: draw at the canvas's real size in device pixels, so the field is sharp on any screen
+    let size = { pw: canvas.width, ph: canvas.height };
+    let want = null;
+    const measure = (entry) => {
+      const box = entry?.devicePixelContentBoxSize?.[0];
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      let pw = box ? box.inlineSize : Math.round(rect.width * dpr);
+      if (!pw) return;
+      pw = Math.min(MAX_STAGE_PX, Math.max(W, pw));
+      want = { pw, ph: Math.round((pw * H) / W) };
+    };
+    const ro = new ResizeObserver(([entry]) => measure(entry));
+    try { ro.observe(canvas, { box: 'device-pixel-content-box' }); } catch { ro.observe(canvas); }
+    measure();
     let last = performance.now();
     let raf;
     const loop = (now) => {
+      if (want && (want.pw !== size.pw || want.ph !== size.ph)) {
+        size = want;
+        canvas.width = size.pw;
+        canvas.height = size.ph;
+        resizeRenderer(r, size.pw, size.ph);
+      }
       game.update((now - last) / 1000);
       last = now;
-      ctx.setTransform(RES, 0, 0, RES, 0, 0);
+      ctx.setTransform(size.pw / W, 0, 0, size.ph / H, 0, 0);
       ctx.imageSmoothingEnabled = false;
       drawScene(ctx, game, r, { hover: hover.current, time: now / 1000, aim: aimRef.current });
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => cancelAnimationFrame(raf);
+    return () => { cancelAnimationFrame(raf); ro.disconnect(); };
   }, [game]);
 
   /** How far a pick may miss, in world pixels: about 4 px for a mouse, about 22 screen px for a finger. */
