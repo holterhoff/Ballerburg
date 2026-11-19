@@ -480,10 +480,10 @@ function drawVane(c, x, y, pal, wind, t) {
   }
 }
 
-function drawMine(c, x, y, t, damage = 0, lame = 0) {
-  drawMineBody(c, x, y, lame ? 0 : t, damage);
-  if (!lame) return;
-  // Extension "spy": a blown-up tower stands black and still, smoke rises, a tally shows the rounds left
+function drawMine(c, x, y, t, damage = 0, sabotaged = false) {
+  drawMineBody(c, x, y, sabotaged ? 0 : t, damage);
+  if (!sabotaged) return;
+  // Extension "spy": a blown-up tower stands black and still for good, smoke rises
   c.fillStyle = 'rgba(20, 14, 10, 0.4)';
   c.fillRect(x + 1, y + 8, 14, 16);
   for (let i = 0; i < 3; i++) {
@@ -492,8 +492,6 @@ function drawMine(c, x, y, t, damage = 0, lame = 0) {
     c.fillRect((x + 6 + Math.sin(t * 2 + i * 2) * 2 + p * 3) | 0, (y - 1 - p * 12) | 0, 2 + Math.round(p * 2), 2 + Math.round(p * 2));
   }
   if (Math.floor(t * 5) % 3 === 0) { c.fillStyle = '#ff8a2a'; c.fillRect(x + 5, y + 18, 1, 1); c.fillRect(x + 10, y + 13, 1, 1); }
-  c.fillStyle = '#ff5a3a';
-  for (let i = 0; i < lame; i++) c.fillRect(x + 2 + i * 3, y + 26, 2, 1);
 }
 
 function drawMineBody(c, x, y, t, damage = 0) {
@@ -508,19 +506,21 @@ function drawMineBody(c, x, y, t, damage = 0) {
   px(c, x + 5, y + 1, 6, 1);
   c.fillStyle = '#c9c4b8';
   if (damage) {
-    // damaged: the wheel stands still, a piece is missing and the rope hangs loose
-    px(c, x + 6, y, 3, 4);
-    px(c, x + 9, y + 2, 1, 2);
-    c.fillStyle = '#8f8a80';
-    px(c, x + 6, y + 3, 1, 1);
+    // damaged: the wheel has broken off its axle and hangs down on the rope, swaying a little
     c.fillStyle = '#3b2a1e';
-    px(c, x + 7, y + 1, 1, 2);
-    px(c, x + 8, y + 2, 1, 1);
-    c.fillStyle = '#c9c4b8';
-    px(c, x + 10, y + 4, 1, 1);
+    px(c, x + 7, y + 1, 2, 2); // the empty axle bearing at the top
+    const sway = t && Math.floor(t * 1.5) % 2 ? 1 : 0;
+    const wx = x + 9 + sway, wy = y + 7;
     c.fillStyle = '#d8d2c0';
-    line(c, x + 9, y + 4, x + 9, y + 10);
-    px(c, x + (Math.floor(t * 2) % 2 ? 10 : 8), y + 10, 1, 1);
+    line(c, x + 8, y + 2, wx + 1, wy); // the rope it hangs on
+    c.fillStyle = '#c9c4b8';
+    px(c, wx, wy, 4, 3); // the wheel, tilted, with a piece broken out
+    px(c, wx + 1, wy + 3, 2, 1);
+    c.fillStyle = '#3b2a1e';
+    px(c, wx + 1, wy + 1, 1, 1);
+    px(c, wx + 3, wy + 2, 1, 1);
+    c.fillStyle = '#8f8a80';
+    px(c, wx, wy + 2, 1, 1);
   } else {
     px(c, x + 6, y, 4, 4);
     c.fillStyle = '#3b2a1e';
@@ -629,7 +629,7 @@ export function drawObject(c, o, { wind = 0, t = 0, angle = 45, highlight = fals
     case 'balls': return stock ? drawChamber(c, o, 'balls', stock.balls, t) : drawBalls(c, x, y);
     case 'gold': return stock ? drawChamber(c, o, 'gold', stock.money, t) : drawGold(c, x, y, t);
     case 'vane': return drawVane(c, x, y, pal, wind, t);
-    case 'mine': return drawMine(c, x, y, t, o.damage || 0, o.lame || 0);
+    case 'mine': return drawMine(c, x, y, t, o.damage || 0, !!o.sabotaged);
   }
 }
 

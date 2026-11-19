@@ -43,14 +43,14 @@ export const ROBBER = {
   walkSpeed: 26, // pixels per second while he walks on screen
 };
 /**
- * Extension "spy": a castle can hire a spy. He walks over the mountain to the enemy castle and
- * blows up its shaft towers, so they bring no gold for a few rounds. Without towers he goes for
- * the powder store. A castle guard cannot stop him; only a ball can.
+ * Extension "spy": a castle can hire a spy. He walks over the mountain to the enemy castle, step by
+ * step like the robber, so there is time to shoot him. His charge damages a shaft tower like a ball
+ * and stops it: a sabotaged tower never mends by itself, only a repair in the market helps. Without towers he goes for the powder
+ * store. A castle guard cannot stop him; only a ball can.
  */
 export const SPY = {
   width: 10, height: 16,
-  stepMin: 45, stepMax: 70, // pixels per move, faster than the robber
-  lameMin: 3, lameMax: 5, // own rounds a sabotaged tower brings no gold
+  stepMin: ROBBER.stepMin, stepMax: ROBBER.stepMax, // pixels per move: no faster than the robber
   acts: 2, // sabotage acts per spy, then he flees home
   fuse: 1, // moves between laying the charge and the blast
   powderShare: 50, // per cent of the powder store burnt when there is no tower
@@ -94,11 +94,14 @@ export const MARKET = [
   { key: 'guard', label: 'Burgwache' },
   /** Extension "spy": sabotages the enemy's shaft towers. */
   { key: 'spy', label: 'Spion' },
+  /** Extension "repair": a damaged or sabotaged shaft tower is mended for half the tower price. */
+  { key: 'repair', label: 'Förderturm reparieren' },
 ];
-const START_PRICES = [200, 500, 400, 150, 50, 50, 150, 300];
-const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110, 260];
-const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200, 380];
-const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20, 30];
+// repair: the entries only keep the arrays in step; its price is always half the tower price (priceOf)
+const START_PRICES = [200, 500, 400, 150, 50, 50, 150, 300, 250];
+const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110, 260, 173];
+const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200, 380, 353];
+const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20, 30, 25];
 const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
@@ -150,7 +153,7 @@ export const DEFAULT_OPTIONS = {
   /** Neufassung: time of day — 'morgen', 'tag', 'abend', 'nacht' or 'zufall' (random per game). */
   timeOfDay: 'zufall',
   /** Extensions, all off by default: the standard game plays like the original. */
-  extensions: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false },
+  extensions: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false, repair: false },
 };
 
 /* ---------- helpers that mimic C integer arithmetic ---------- */
@@ -161,8 +164,8 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 /** The two game modes in the menu: the original rules, or every extension switched on. */
 export const MODES = {
-  original: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false },
-  erweitert: { landslides: true, falling: true, overheat: true, robber: true, spy: true, storm: true },
+  original: { landslides: false, falling: false, overheat: false, robber: false, spy: false, storm: false, repair: false },
+  erweitert: { landslides: true, falling: true, overheat: true, robber: true, spy: true, storm: true, repair: true },
 };
 export const modeOf = (ext) => (Object.values(ext || {}).some(Boolean) ? 'erweitert' : 'original');
 
@@ -419,8 +422,8 @@ export class Game {
     const popBefore = p.pop;
     p.pop = idiv(p.pop * (95 + rnd(11)), 100) + idiv((21 - j + rnd(9)) * (8 + rnd(5)), 20);
     for (const m of this.objectsOf(p.idx, 'mine')) {
-      // Extension "spy": a sabotaged tower brings nothing until it is repaired
-      if (m.lame > 0) { m.lame--; if (!m.lame) this.say(`Der Förderturm von ${p.name} ist repariert und fördert wieder.`); continue; }
+      // Extension "spy": a sabotaged tower brings nothing until it is repaired in the market
+      if (m.sabotaged) continue;
       p.money += 40 + rnd(31);
     }
     // original: drw_gpk() caps money to what the chamber holds.
@@ -997,7 +1000,7 @@ export class Game {
   /** The enemy tower a spy goes for next: a working one, the nearest first. */
   spyTarget(s) {
     const foe = 1 - s.owner;
-    const towers = this.objectsOf(foe, 'mine').filter((m) => !(m.lame > 0));
+    const towers = this.objectsOf(foe, 'mine').filter((m) => !m.sabotaged);
     if (!towers.length) return null;
     towers.sort((a, b) => Math.abs(a.x + a.w / 2 - s.x) - Math.abs(b.x + b.w / 2 - s.x));
     return towers[0];
@@ -1030,7 +1033,7 @@ export class Game {
       if (s.state === 'flee') goal = this.robberGoal(s.owner);
       else {
         let t = this.obj(s.targetId);
-        if (!t || !t.alive || t.lame > 0) { t = this.spyTarget(s); s.targetId = t ? t.id : null; }
+        if (!t || !t.alive || t.sabotaged) { t = this.spyTarget(s); s.targetId = t ? t.id : null; }
         goal = t ? this.spySpot(t, s.owner) : this.robberGoal(foe.idx);
       }
       s.dir = goal > s.x ? 1 : -1;
@@ -1051,18 +1054,27 @@ export class Game {
     }
   }
 
-  /** The charge goes off: a tower stands still for a few rounds, or the powder store burns. */
+  /** The charge goes off: it damages a tower like a ball and stops it for good, or the powder store burns. */
   spyBlast(s) {
     const owner = this.players[s.owner], foe = this.players[1 - s.owner];
     const t = this.obj(s.targetId);
     sound.explosion(90);
     if (t && t.alive && t.type === 'mine') {
-      t.lame = SPY.lameMin + rnd(SPY.lameMax - SPY.lameMin + 1);
       this.chamberBlast({ x: t.x, y: t.y + 6, w: t.w, h: t.h - 6 }, 'powder', 4);
       this.flashes.push({ x: t.x + t.w / 2, y: t.y + t.h - 4, r: 22, t: 0, life: 0.6 });
       this.shake = Math.min(8, this.shake + 3);
       owner.sabotages = (owner.sabotages || 0) + 1;
-      this.say(`Rumms! Der Spion von ${owner.name} hat den Förderturm von ${foe.name} gesprengt. ${t.lame} Runden lang fördert er nichts.`, 'hit');
+      // the same damage as a ball (a tower that was already hit falls), and it never works again
+      const wasDamaged = (t.damage || 0) + 1 >= MINE_HITS;
+      t.damage = (t.damage || 0) + 1;
+      if (wasDamaged) {
+        this.say(`Rumms! Der Spion von ${owner.name} sprengt den schon beschädigten Förderturm von ${foe.name}.`, 'hit');
+        this.destroy(t, s.owner);
+        return;
+      }
+      t.sabotaged = true;
+      this.burst(t, 6);
+      this.say(`Rumms! Der Spion von ${owner.name} hat den Förderturm von ${foe.name} gesprengt. Das Rad ist gebrochen, der Turm fördert nie wieder.`, 'hit');
       return;
     }
     const store = this.objectsOf(foe.idx, 'powder')[0];
@@ -1198,7 +1210,15 @@ export class Game {
   /** Original: market items are greyed out when unaffordable or not possible. */
   /** What an item costs right now (bricks are free in test mode). */
   priceOf(key) {
+    if (key === 'repair') return idiv(this.prices.mine, 2);
     return key === 'stones' && this.options.freeBuilding ? 0 : this.prices[key];
+  }
+
+  /** Extension "repair": the own tower that needs it most — a sabotaged one first, then a hit one. */
+  brokenMine(p = this.cur) {
+    const broken = this.objectsOf(p.idx, 'mine').filter((m) => m.sabotaged || m.damage > 0);
+    broken.sort((a, b) => (b.sabotaged ? 1 : 0) - (a.sabotaged ? 1 : 0));
+    return broken[0] || null;
   }
 
   canBuy(key, p = this.cur) {
@@ -1212,6 +1232,7 @@ export class Game {
       case 'balls': return p.balls < p.caps.balls;
       case 'guard': return this.options.extensions.robber && !this.objectsOf(p.idx, 'guard').length && !!this.guardSpot(p);
       case 'spy': return this.options.extensions.spy && !this.spies.some((s) => s.owner === p.idx);
+      case 'repair': return !!this.options.extensions.repair && !!this.brokenMine(p);
       default: return false;
     }
   }
@@ -1259,6 +1280,14 @@ export class Game {
         s.targetId = t ? t.id : null;
         this.spies.push(s);
         this.say(`${p.name} schickt einen Spion über den Berg zu ${this.players[1 - p.idx].name}.`, 'warn');
+        break;
+      }
+      case 'repair': {
+        const m = this.brokenMine(p);
+        const was = m.sabotaged ? 'gesprengten' : 'beschädigten';
+        m.damage = 0;
+        m.sabotaged = false;
+        this.say(`${p.name} lässt den ${was} Förderturm reparieren. Er fördert wieder.`);
         break;
       }
     }
@@ -1485,12 +1514,14 @@ export class Game {
       : Math.min(this.prices.powder + this.prices.balls, Math.max(0, p.caps.money - this.prices.mine));
     // Mode "Erweitert": a damaged castle buys bricks and fills the holes in its walls
     if (modeOf(this.options.extensions) === 'erweitert' && p.money >= this.priceOf('stones') + reserve) this.aiRepair(p);
+    // Extension "repair": a broken tower is cheaper to mend than a new one
+    if (this.options.extensions.repair && p.money >= this.priceOf('repair') + reserve && this.canBuy('repair', p)) this.buy('repair');
     if ((builder || modeOf(this.options.extensions) === 'erweitert') && this.objectsOf(n, 'mine').length < 3
         && p.money >= this.prices.mine + reserve && this.nextMineSpot(p)) this.buy('mine');
     // Extension "robber": hire a guard when the robber is heading this way and there is gold to lose
     if (this.robber && this.robber.target === n && p.money >= this.prices.guard + 100 && this.canBuy('guard', p)) this.buy('guard');
     // Extension "spy": against a castle with working towers the computer now and then hires a spy
-    if (this.options.extensions.spy && this.objectsOf(foe.idx, 'mine').some((m) => !(m.lame > 0))
+    if (this.options.extensions.spy && this.objectsOf(foe.idx, 'mine').some((m) => !m.sabotaged)
         && p.money >= this.prices.spy + 20 && this.canBuy('spy', p) && rnd(100) < SPY.aiBuy) this.buy('spy');
 
     // Extension: the computer never fires a red-hot cannon; with none left it sits out
@@ -1676,7 +1707,7 @@ export class Game {
     if (!this.options.extensions.overheat) for (const o of this.objects) if (o.type === 'cannon') o.heat = 0;
     if (!this.options.extensions.spy) {
       this.spies = [];
-      for (const o of this.objects) if (o.type === 'mine') o.lame = 0;
+      for (const o of this.objects) if (o.type === 'mine') o.sabotaged = false;
     }
     if (!this.options.extensions.storm) { this.weather = 'klar'; this.stormLeft = 0; this.bolts = []; }
     this.emit();
