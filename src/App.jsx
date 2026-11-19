@@ -81,6 +81,17 @@ export default function App() {
   const [terrain, setTerrain] = useState('zufall');
   const [options, setOptions] = useState(DEFAULT_OPTIONS);
   const [muted, setMuted] = useState(false);
+  // Neufassung: full screen hides the browser's own bars; not every browser allows it (iPhone Safari does not)
+  const [full, setFull] = useState(() => !!document.fullscreenElement);
+  useEffect(() => {
+    const on = () => setFull(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', on);
+    return () => document.removeEventListener('fullscreenchange', on);
+  }, []);
+  const toggleFull = () => {
+    const req = full ? document.exitFullscreen?.() : document.documentElement.requestFullscreen?.();
+    req?.catch?.(() => {});
+  };
   const [dialog, setDialog] = useState(null);
   const gameRef = useRef(null);
 
@@ -173,6 +184,7 @@ export default function App() {
         { label: 'Aufgeben', disabled: !humanTurn, onSelect: () => g.surrender() },
         { separator: true },
         { label: muted ? 'Ton einschalten' : 'Ton ausschalten', onSelect: () => { sound.setMuted(!muted); setMuted(!muted); } },
+        { label: 'Vollbild', checked: full, disabled: !document.fullscreenEnabled, onSelect: toggleFull },
       ],
     },
     {

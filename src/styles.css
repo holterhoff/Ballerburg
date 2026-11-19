@@ -3,7 +3,7 @@
   --paper: #fff;
   --grey: #c7c7c7;
   --grey-dark: #8a8a8a;
-  --desk: #3a6b5a;
+  --desk: #0e0c1c;
   --focus: #e3b45a;
   --z-hud: 2;
   --z-menu: 20;
@@ -21,13 +21,8 @@ body {
   font-family: var(--font);
   font-size: 20px;
   line-height: 1.2;
-  /* desktop: a fine two-tone dither, like the old GEM desktop pattern */
+  /* night colour of the sky: fills the space the 16:10 field leaves free */
   background-color: var(--desk);
-  background-image:
-    linear-gradient(45deg, rgba(0, 0, 0, 0.12) 25%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.12) 75%),
-    linear-gradient(45deg, rgba(0, 0, 0, 0.12) 25%, transparent 25%, transparent 75%, rgba(0, 0, 0, 0.12) 75%);
-  background-size: 4px 4px;
-  background-position: 0 0, 2px 2px;
 }
 
 button, input, select { font-family: var(--font); font-size: 20px; color: var(--ink); }
@@ -55,8 +50,9 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .gem-sep { border-top: 1px dashed var(--grey-dark); margin: 3px 0; }
 
 /* ---------- playfield ---------- */
-.desk-main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 12px 12px 16px; gap: 8px; }
-.play { position: relative; width: min(100%, calc((100dvh - 120px) * 1.6)); display: flex; flex-direction: column; gap: 8px; }
+.desk-main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 0; gap: 0; }
+/* the field keeps Kruse's 640 x 400 (16:10) and grows as far as the window allows; 64px = menu bar + status line */
+.play { position: relative; width: min(100%, calc((100dvh - 64px) * 1.6)); display: flex; flex-direction: column; gap: 0; }
 /* desktop: the info box floats over the field, the status line sits below it */
 .hud { display: contents; }
 .actionbar { display: none; }
@@ -64,8 +60,6 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   position: relative;
   width: 100%;
   aspect-ratio: 16 / 10;
-  border: 2px solid var(--ink);
-  box-shadow: 5px 5px 0 rgba(0, 0, 0, 0.45);
   background: #15122a;
 }
 .stage-canvas.building { touch-action: none; }
@@ -92,7 +86,7 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 
 .statusline {
   width: 100%;
-  background: var(--paper); border: 2px solid var(--ink); padding: 3px 10px;
+  background: var(--paper); border-top: 2px solid var(--ink); padding: 3px 10px;
   display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 16px; min-height: 32px;
 }
 .statusline .hint { color: #444; }
@@ -196,7 +190,7 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   .gem-menubar > ul { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; }
   .gem-title { padding: 6px 9px 5px; white-space: nowrap; }
   .screen { box-shadow: none; }
-  .hud { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+  .hud { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding-top: 6px; }
   .infobox { position: static; width: auto; box-shadow: none; display: grid; grid-template-columns: 1fr auto; align-items: center; font-size: 17px; }
   .info-who, .info-wind { border-bottom: 0; }
   .infobox.side-right .info-who { border-right: 0; border-left: 6px solid var(--side); text-align: left; }
