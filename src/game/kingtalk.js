@@ -5,6 +5,15 @@
  * Wer mag, schreibt hier eigene dazu: einfach eine neue Zeile in die Liste.
  */
 
+/**
+ * Gruß vom König, geschrieben von Eckhard Kruse selbst für die Kinder dieses Projekts (November 2026).
+ * Wortlaut unverändert. Der König sagt ihn bei der ersten Audienz, danach steht er unter „Über Ballerburg“.
+ */
+export const KRUSE_GREETING = [
+  'Hört, Ihr junges Programmiervolk!',
+  'Es erfreut mein königliches Herz, dass Ihr Ballerburg mit frischen Ideen und klugen Köpfen zu neuem Leben erweckt! Möget Ihr stets die richtigen Befehle finden, Eure Hardware bombensicher laufen, der Ideenspeicher gut gefüllt sein und alle Funktionen und Variablen zielgenau treffen, egal woher der Wind weht. Und falls es mal nicht so klappt, tröstet Euch mit einem sanften: Na ja, nun gut, weiter so!',
+];
+
 /** The first audience in a game: the king greets you and introduces his maker. */
 export const GREETINGS = [
   'Seid gegrüßt in Unserem Reich! Erschaffen hat Uns Meister Eckhard Kruse, anno 1987, auf einem Atari ST. Damals gab es nur Schwarz und Weiß. Seht nur, wie bunt Wir heute sind!',

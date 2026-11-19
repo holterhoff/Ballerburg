@@ -132,6 +132,8 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .gem-text { margin: 4px 0 8px; background: var(--paper); border: 1px solid var(--ink); padding: 6px 8px; }
 .gem-text.big { font-size: 26px; text-align: center; }
 .king-quote { font-size: 22px; }
+.king-line { margin: 0 0 6px; }
+.king-line:last-child { margin-bottom: 0; }
 .gem-small { font-size: 17px; margin: 6px 0; color: #222; }
 .gem-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin-top: 12px; }
 .gem-box { background: var(--paper); border: 2px solid var(--ink); padding: 6px 10px 8px; margin: 0 0 8px; min-width: 0; }

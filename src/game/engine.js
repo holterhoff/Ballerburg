@@ -13,7 +13,7 @@
  * Jede Methode nennt ihr Gegenstück im C-Original (baller1.c, baller2.c, market.c, cannoneer.c).
  * Abweichungen und Erweiterungen sind mit "Neufassung:" gekennzeichnet.
  */
-import { GREETINGS, KRUSE_SAYINGS, ROASTS, PRAISE } from './kingtalk.js';
+import { GREETINGS, KRUSE_GREETING, KRUSE_SAYINGS, ROASTS, PRAISE } from './kingtalk.js';
 import {
   W, H, CELL, G, STEPS_PER_SECOND, ANGLE_MAX, POWDER_MIN, POWDER_MAX, DEFAULT_AIM, SIZES, EARTH, BRICK,
 } from './constants.js';
@@ -1341,7 +1341,10 @@ export class Game {
     if (!p.greeted) {
       // Neufassung: the first audience is a greeting from the king about his maker, Eckhard Kruse
       p.greeted = true;
-      result = { greeting: true, text: GREETINGS[rnd(GREETINGS.length)] };
+      // Eckhard Kruse's own greeting comes first, once per browser; after that the king picks one of ours
+      let seen = false;
+      try { seen = localStorage.getItem('ballerburg-kruse-gruss') === '1'; localStorage.setItem('ballerburg-kruse-gruss', '1'); } catch { /* no storage */ }
+      result = seen ? { greeting: true, text: GREETINGS[rnd(GREETINGS.length)] } : { greeting: true, kruse: true, lines: KRUSE_GREETING };
     } else if (!rnd(20) || p.visitedThisTurn || p.visitStreak > 9) {
       result = { refused: true, text: 'Der König ist nicht in der Stimmung, Euch zu empfangen.' };
     } else {

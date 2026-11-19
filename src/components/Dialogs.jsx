@@ -7,6 +7,7 @@ import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
 import { generateTerrain } from '../game/terrain.js';
 import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS, TIME_CHOICES } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
+import { KRUSE_GREETING } from '../game/kingtalk.js';
 
 export function Notice({ text, button = 'Abbruch', onClose }) {
   return (
@@ -179,7 +180,13 @@ export function MarketDialog({ game, onClose }) {
 export function KingDialog({ result, onClose }) {
   return (
     <Dialog title="" onClose={onClose} className="narrow">
-      {result.refused ? <p className="gem-text">{result.text}</p> : result.greeting ? (
+      {result.refused ? <p className="gem-text">{result.text}</p> : result.kruse ? (
+        <>
+          <p className="gem-text"><b>Ein Gruß des Königs</b></p>
+          <div className="gem-text king-quote">{result.lines.map((l, i) => <p key={i} className="king-line">{i === 0 ? '„' : ''}{l}{i === result.lines.length - 1 ? '“' : ''}</p>)}</div>
+          <p className="gem-small">Überbracht von Eckhard Kruse, der Ballerburg 1987 erfunden hat. Du findest den Gruß auch unter „Ballerburg → Über Ballerburg“.</p>
+        </>
+      ) : result.greeting ? (
         <>
           <p className="gem-text"><b>Ein Grußwort des Königs</b></p>
           <p className="gem-text king-quote">„{result.text}“</p>
@@ -424,6 +431,11 @@ export function AboutDialog({ onClose }) {
     <Dialog title="B A L L E R B U R G" onClose={onClose} className="narrow about">
       <p className="gem-text">Das Burgen-Artilleriespiel für den Browser. Erfunden von <b>Eckhard Kruse</b>, 1987 für den Atari ST.</p>
       <p className="gem-text">Die Spiellogik ist eine Portierung von Ballerburg, © 1987, 1989 Eckhard Kruse, und der SDL-Fassung © 2010, 2015 Thomas Huth. Name und Spiel mit freundlicher Erlaubnis von Eckhard Kruse. Grafik, neue Burgen und Texte dieser Fassung sind eigene Arbeiten.</p>
+      <fieldset className="gem-box">
+        <legend>Ein Gruß des Königs</legend>
+        {KRUSE_GREETING.map((l, i) => <p key={i} className="king-line">{l}</p>)}
+        <p className="gem-small">Geschrieben von Eckhard Kruse für alle, die Ballerburg weiterbauen.</p>
+      </fieldset>
       <p className="gem-text">Dieses Programm ist freie Software unter der GNU General Public License, Version 3 oder später. Es kommt ohne jede Gewährleistung. Den Quellcode und den Lizenztext findest du im Projektarchiv (Datei LICENSE).</p>
       <p className="gem-small"><a href="https://www.gnu.org/licenses/gpl-3.0.html" target="_blank" rel="noreferrer">GNU GPL v3 lesen</a></p>
       <div className="gem-actions"><Btn def data-autofocus onClick={onClose}>OK</Btn></div>
