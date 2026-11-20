@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, Btn } from './Gem.jsx';
+import { CastlePicker } from './Dialogs.jsx';
 import { CASTLES } from '../game/castles.js';
 import { SIDE_COLORS } from '../game/render.js';
 import { newRoomCode, useOpenRooms } from '../online/useOnlineMatch.js';
@@ -13,7 +14,7 @@ const saveName = (n) => { try { localStorage.setItem(NAME_KEY, n); } catch { /* 
  * Online spielen: einen Raum eröffnen oder einem beitreten. Im Raum sieht man, wer da ist;
  * der Gastgeber spielt die linke Burg, der erste Gast die rechte, alle weiteren schauen zu.
  */
-export function OnlineDialog({ room, online, castles, onEnter, onStart, onLeave, onClose }) {
+export function OnlineDialog({ room, online, castles, rules, onEnter, onStart, onLeave, onClose }) {
   const [name, setName] = useState(loadName);
   const [code, setCode] = useState('');
   const { rooms, status } = useOpenRooms(!room);
@@ -63,9 +64,35 @@ export function OnlineDialog({ room, online, castles, onEnter, onStart, onLeave,
     );
   }
 
-  const { members, status: roomStatus, isHost, versionMismatch } = online;
+  return <RoomView room={room} online={online} castles={castles} rules={rules} onStart={onStart} onLeave={onLeave} onClose={onClose} />;
+}
+
+const RULES_LABEL = { original: 'Original (Regeln von Eckhard Kruse)', erweitert: 'Erweitert (mit allen Erweiterungen)' };
+
+/**
+ * Der Raum: erst treffen sich die Spieler, dann wählt jeder seine Burg (links der Gastgeber, rechts der Gast).
+ * Der Gastgeber legt außerdem die Spielart fest und startet.
+ */
+function RoomView({ room, online, castles, rules, onStart, onLeave, onClose }) {
+  const { members, status: roomStatus, isHost, versionMismatch, me, choose } = online;
   const players = members.slice(0, 2);
   const watchers = members.slice(2);
+  const mySeat = players.findIndex((m) => m.id === me);
+  const ready = players.length === 2;
+  const myCastle = players[mySeat]?.castle;
+  const hostRules = players[0]?.rules || rules;
+
+  // Sobald zwei da sind: eigene Burg vorbelegen (die bisherige Wahl dieser Seite), der Gastgeber auch die Spielart
+  const [preset, setPreset] = useState(false);
+  useEffect(() => {
+    if (!ready || mySeat < 0 || preset) return;
+    setPreset(true);
+    const patch = {};
+    if (!myCastle) patch.castle = castles[mySeat];
+    if (isHost && !players[0]?.rules) patch.rules = rules;
+    if (Object.keys(patch).length) choose(patch);
+  }, [ready, mySeat, myCastle, isHost, castles, rules, choose, players, preset]);
+
   return (
     <Dialog title={`Raum ${room.code}`} onClose={onClose} className="narrow">
       <p className="gem-text">Raumcode: <b className="online-code">{room.code}</b></p>
@@ -77,20 +104,39 @@ export function OnlineDialog({ room, online, castles, onEnter, onStart, onLeave,
           {[0, 1].map((i) => (
             <li key={i} style={{ '--side': SIDE_COLORS[i].main }}>
               <span className="online-side">{i === 0 ? 'Links' : 'Rechts'}</span>
-              {players[i] ? <b>{players[i].name}</b> : <i>wartet auf Mitspieler …</i>}
-              {isHost && <span className="online-castle"> · {CASTLES[castles[i]]?.name}</span>}
+              {players[i] ? <b>{players[i].name}{i === mySeat ? ' (du)' : ''}</b> : <i>wartet auf Mitspieler …</i>}
+              {ready && i !== mySeat && <span className="online-castle"> · {players[i].castle ? CASTLES[players[i].castle]?.name : 'wählt noch …'}</span>}
             </li>
           ))}
           {watchers.map((m) => <li key={m.id} className="online-watch">schaut zu: {m.name}</li>)}
         </ul>
       </fieldset>
+      {ready && mySeat >= 0 && (
+        <fieldset className="gem-box">
+          <legend>Deine Burg ({mySeat === 0 ? 'links' : 'rechts'})</legend>
+          <CastlePicker side={mySeat} value={myCastle || castles[mySeat]} original={hostRules === 'original'} onChange={(c) => choose({ castle: c })} />
+        </fieldset>
+      )}
+      {ready && (
+        <fieldset className="gem-box">
+          <legend>Spielart</legend>
+          {isHost ? (
+            <label className="gem-field">
+              <select value={hostRules} onChange={(e) => choose({ rules: e.target.value })}>
+                {Object.entries(RULES_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
+              </select>
+            </label>
+          ) : <p className="gem-small">{RULES_LABEL[hostRules]}. Der Gastgeber legt sie fest.</p>}
+        </fieldset>
+      )}
       {versionMismatch && <p className="gem-small">Achtung: Nicht alle haben dieselbe Version von Ballerburg. Bitte die Seite neu laden.</p>}
-      {isHost
-        ? <p className="gem-small">Es gelten deine Burgen, das Gelände und die Spielart aus „Neues Spiel“ und „Modus“. Sobald ein Mitspieler da ist, kannst du starten.</p>
-        : <p className="gem-small">Der Gastgeber startet die Partie. Du spielst die rechte Burg.</p>}
+      {!ready && <p className="gem-small">Sobald ein Mitspieler im Raum ist, wählt jeder seine Burg.</p>}
+      {ready && (isHost
+        ? <p className="gem-small">Wenn ihr beide eure Burg gewählt habt, startest du die Partie.</p>
+        : <p className="gem-small">Wähle deine Burg. Der Gastgeber startet die Partie.</p>)}
       <div className="gem-actions">
         <Btn onClick={onLeave}>Raum verlassen</Btn>
-        {isHost && <Btn def disabled={players.length < 2} onClick={onStart}>Partie starten</Btn>}
+        {isHost && <Btn def disabled={!ready} onClick={() => onStart({ castles: players.map((m, i) => m.castle || castles[i]), rules: hostRules })}>Partie starten</Btn>}
       </div>
     </Dialog>
   );

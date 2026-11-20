@@ -95,6 +95,14 @@ export default function App() {
     req?.catch?.(() => {});
   };
   const [dialog, setDialog] = useState(null);
+  // phones: fewer menu titles, so the bar fits without scrolling sideways
+  const [narrow, setNarrow] = useState(() => window.matchMedia('(max-width: 720px), (max-height: 540px) and (orientation: landscape)').matches);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 720px), (max-height: 540px) and (orientation: landscape)');
+    const on = () => setNarrow(mq.matches);
+    mq.addEventListener('change', on);
+    return () => mq.removeEventListener('change', on);
+  }, []);
   const gameRef = useRef(null);
 
   const start = useCallback((s = sides, field = null, opts = options) => {
@@ -187,7 +195,17 @@ export default function App() {
 
   const mode = sides.map((s) => s.type).join('-');
   const menus = [
-    { title: 'Ballerburg', items: [{ label: 'Über Ballerburg …', onSelect: () => setDialog({ type: 'about' }) }] },
+    {
+      title: 'Ballerburg',
+      items: [
+        { label: 'Über Ballerburg …', onSelect: () => setDialog({ type: 'about' }) },
+        ...(narrow ? [
+          { separator: true },
+          { label: 'Spielregeln …', onSelect: () => setDialog({ type: 'rules' }) },
+          { label: 'Ergebnisliste …', onSelect: () => setDialog({ type: 'scores' }) },
+        ] : []),
+      ],
+    },
     {
       title: 'Spiel',
       items: [
@@ -226,8 +244,10 @@ export default function App() {
         { label: 'Raum verlassen', disabled: !room, onSelect: leaveRoom },
       ],
     },
-    { title: 'Regeln', items: [{ label: 'Spielregeln …', onSelect: () => setDialog({ type: 'rules' }) }] },
-    { title: 'Ergebnisse', items: [{ label: 'Ergebnisliste …', onSelect: () => setDialog({ type: 'scores' }) }] },
+    ...(narrow ? [] : [
+      { title: 'Regeln', items: [{ label: 'Spielregeln …', onSelect: () => setDialog({ type: 'rules' }) }] },
+      { title: 'Ergebnisse', items: [{ label: 'Ergebnisliste …', onSelect: () => setDialog({ type: 'scores' }) }] },
+    ]),
   ];
 
   const close = () => setDialog(null);
@@ -332,8 +352,9 @@ export default function App() {
           room={room}
           online={online}
           castles={sides.map((s) => s.castle)}
+          rules={modeOf(options.extensions)}
           onEnter={(r) => setRoom(r)}
-          onStart={() => online.start({ castles: sides.map((s) => s.castle), terrain, options })}
+          onStart={({ castles, rules }) => online.start({ castles, terrain, options: { ...options, extensions: { ...MODES[rules] } } })}
           onLeave={leaveRoom}
           onClose={close}
         />

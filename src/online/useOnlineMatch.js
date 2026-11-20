@@ -138,6 +138,9 @@ export function useOnlineMatch(room, onGame, force) {
   }, [room, applyPending]);
 
   const joinedAt = useRef(Date.now());
+  // Burgwahl im Raum: jeder wählt seine eigene Burg, sobald zwei Spieler da sind (steht in der Presence)
+  const choiceRef = useRef({}); // { castle, rules } – rules wählt nur der Gastgeber
+  const metaRef = useRef(null);
   useEffect(() => {
     if (!room) return undefined;
     const { code, name, host } = room;
@@ -190,7 +193,8 @@ export function useOnlineMatch(room, onGame, force) {
         }
       },
     });
-    ch.track({ id: me, name, host, joinedAt: joinedAt.current, version: APP_VERSION });
+    metaRef.current = { id: me, name, host, joinedAt: joinedAt.current, version: APP_VERSION };
+    ch.track({ ...metaRef.current, ...choiceRef.current });
     chRef.current = ch;
 
     // Gastgeber: Raum in der Lobby ankündigen
@@ -216,10 +220,17 @@ export function useOnlineMatch(room, onGame, force) {
     };
   }, [room, me, adopt, applyPending]);
 
-  /** Gastgeber: Partie mit den beiden ersten Spielern im Raum starten. */
-  const start = useCallback(({ castles, terrain, field, options }) => {
+  /** Eigene Wahl im Raum (Burg, beim Gastgeber auch die Spielart); die anderen sehen sie sofort. */
+  const choose = useCallback((patch) => {
+    choiceRef.current = { ...choiceRef.current, ...patch };
+    if (metaRef.current) chRef.current?.track({ ...metaRef.current, ...choiceRef.current });
+  }, []);
+
+  /** Gastgeber: Partie mit den beiden ersten Spielern im Raum starten, jeder mit seiner gewählten Burg. */
+  const start = useCallback(({ castles: fallback, terrain, field, options }) => {
     const players = members.slice(0, 2);
     if (players.length < 2) return;
+    const castles = players.map((m, i) => m.castle || fallback[i]);
     const seatIds = players.map((m) => m.id);
     const cfg = {
       startId: `${Date.now()}`,
@@ -264,7 +275,7 @@ export function useOnlineMatch(room, onGame, force) {
   const versions = new Set(members.map((m) => m.version));
 
   return {
-    me, members, status, seats, mySide, start, fire, leave,
+    me, members, status, seats, mySide, start, fire, leave, choose,
     isHost: !!room?.host, opponentAway, versionMismatch: versions.size > 1,
   };
 }

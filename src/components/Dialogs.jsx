@@ -241,7 +241,7 @@ function capsOf(key) {
   return `${chamberCapacity('gold', c.gold)} Gold · ${chamberCapacity('powder', c.powder)} Pulver · ${chamberCapacity('balls', c.balls)} Kugeln`;
 }
 
-function CastlePicker({ side, value, original, onChange }) {
+export function CastlePicker({ side, value, original, onChange }) {
   const keys = Object.keys(CASTLES);
   const i = keys.indexOf(value);
   const ref = useRef(null);
