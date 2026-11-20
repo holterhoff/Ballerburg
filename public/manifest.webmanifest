@@ -1,0 +1,19 @@
+{
+  "name": "Ballerburg",
+  "short_name": "Ballerburg",
+  "description": "Ballerburg – das Burgen-Artilleriespiel von Eckhard Kruse im Browser.",
+  "lang": "de",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#0e0c1c",
+  "theme_color": "#0e0c1c",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
