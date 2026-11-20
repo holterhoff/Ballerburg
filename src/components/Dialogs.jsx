@@ -204,7 +204,7 @@ export function MarketDialog({ game, onClose }) {
         </div>
         {infoBox('buy')}
       </section>
-      <p className="gem-small">Grau = zu teuer, kein Platz, Lager voll oder schon vorhanden. Das kleine i erklärt, wofür etwas gut ist.</p>
+      <p className="gem-small market-note">Grau = zu teuer, kein Platz, Lager voll oder schon vorhanden. Das kleine i erklärt, wofür etwas gut ist.</p>
       <div className="gem-actions"><Btn def data-autofocus onClick={onClose}>Fertig</Btn></div>
     </Dialog>
   );
@@ -368,7 +368,8 @@ export function OptionsDialog({ options, onApply, onCancel }) {
   const [o, setO] = useState(options);
   const ext = (k, val) => setO({ ...o, extensions: { ...o.extensions, [k]: val } });
   return (
-    <Dialog title="Optionen" onClose={onCancel} className="narrow">
+    <Dialog title="Optionen" onClose={onCancel} className="narrow options">
+      <div className="options-general">
       <label className="gem-check-row"><input type="checkbox" checked={o.autoCapitulate} onChange={(e) => setO({ ...o, autoCapitulate: e.target.checked })} /> König kapituliert in aussichtsloser Lage</label>
       <label className="gem-check-row"><input type="checkbox" checked={o.allowBuilding} onChange={(e) => setO({ ...o, allowBuilding: e.target.checked })} /> Anbauen erlaubt</label>
       <label className="gem-field">
@@ -383,6 +384,7 @@ export function OptionsDialog({ options, onApply, onCancel }) {
           {TIME_CHOICES.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
         </select>
       </label>
+      </div>
       <fieldset className="gem-box">
         <legend>Erweiterungen (nicht im Original)</legend>
         <label className="gem-check-row"><input type="checkbox" checked={o.extensions.landslides} onChange={(e) => ext('landslides', e.target.checked)} /> Unterhöhlte Hänge rutschen nach</label>

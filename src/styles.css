@@ -255,3 +255,91 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .gem-btn.small { font-size: 16px; padding: 1px 8px; min-height: 0; }
 .online-rooms .gem-btn { min-height: 40px; }
 .online-warn { color: #b8322a; }
+
+/* ---------- small screens: dialogs without scrolling ---------- */
+@media (max-width: 720px), (max-height: 540px) {
+  .gem-overlay { padding: 6px; }
+  .gem-dialog { max-height: calc(100dvh - 12px); padding: 6px 8px; }
+  .gem-dialog-title { margin-bottom: 6px; font-size: 19px; }
+  .gem-box { padding: 3px 8px 6px; margin-bottom: 6px; }
+  .gem-text { margin: 2px 0 6px; padding: 4px 6px; }
+  .gem-small { font-size: 15px; margin: 3px 0; }
+  .gem-actions { margin-top: 6px; }
+  .gem-field, .gem-check-row { margin: 3px 0; }
+  .market-icon { width: 20px; height: 20px; }
+  .info-btn { width: 26px; height: 26px; }
+  .castle-preview { max-height: 120px; width: auto; max-width: 100%; }
+  .terrain-preview { max-height: 90px; width: auto; max-width: 100%; }
+}
+
+/* phones held sideways: wide but low, so dialogs spread out in columns */
+@media (max-height: 540px) and (orientation: landscape) {
+  .gem-dialog { width: min(820px, 100%); }
+  .gem-dialog.narrow { width: min(700px, 100%); }
+  .gem-dialog.king { width: min(560px, 100%); }
+  .gem-dialog-title { font-size: 17px; padding: 0 6px; }
+  .king-quote { font-size: 18px; }
+  .gem-dialog.market { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; align-items: start; width: min(820px, 100%); }
+  .gem-dialog.market .gem-box { margin-bottom: 0; }
+  .gem-dialog.market .ledger { grid-template-columns: 1fr; gap: 0; }
+  .gem-dialog.market .ledger-row { min-height: 0; }
+  .gem-dialog.market .market-note { display: none; }
+  .gem-dialog.market .gem-actions { grid-column: 1 / -1; margin-top: 4px; }
+  .gem-dialog.options { display: grid; grid-template-columns: 1fr 1.4fr; gap: 0 10px; align-items: start; }
+  .gem-dialog.options .gem-dialog-title, .gem-dialog.options .gem-actions { grid-column: 1 / -1; }
+  .gem-dialog.online { display: grid; grid-template-columns: 1fr 1fr; gap: 0 8px; align-items: start; }
+  .gem-dialog.online > *:not(.gem-box) { grid-column: 1 / -1; }
+  .setup-cols { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .castle-preview { max-height: 90px; }
+  .castle-picker .gem-small { display: none; }
+}
+.info-box .market-icon { width: 32px; height: 32px; }
+@media (max-height: 540px) and (orientation: landscape) {
+  .gem-dialog.options { width: min(820px, 100%); grid-template-columns: 1fr 2fr; }
+  .gem-dialog.options .gem-box { display: grid; grid-template-columns: 1fr 1fr; gap: 0 10px; }
+  .gem-dialog.options .gem-box legend { grid-column: 1 / -1; }
+  .gem-dialog.options .gem-check-row, .gem-dialog.options .gem-field { font-size: 16px; line-height: 1.1; }
+  .terrain-row { flex-wrap: nowrap; }
+  .terrain-preview { max-height: 60px; }
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  .gem-dialog.setup { display: grid; grid-template-columns: 2.2fr 1fr; gap: 0 6px; align-items: start; width: min(900px, 100%); }
+  .gem-dialog.setup .gem-dialog-title, .gem-dialog.setup .gem-actions { grid-column: 1 / -1; }
+  .gem-dialog.setup .terrain-row { flex-wrap: wrap; font-size: 15px; }
+  .gem-dialog.setup .castle-preview { max-height: 64px; }
+  .strategy-list { gap: 1px; margin: 2px 0; }
+  .strategy-list button, .strength button, .mode-row button { font-size: 15px; line-height: 1.15; }
+  .strategy .gem-small { display: none; }
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  /* buttons under the battlefield in the right column, so the castles get the full height */
+  .gem-dialog.setup { grid-template-rows: auto auto 1fr; }
+  .gem-dialog.setup .setup-cols { grid-row: 2 / 4; }
+  .gem-dialog.setup .gem-actions { grid-column: 2; grid-row: 3; align-self: end; }
+}
+@media (max-height: 540px) and (orientation: landscape) {
+  /* the explanation floats over the lower part of the market instead of making it taller */
+  .gem-dialog.market .info-box { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(600px, 92vw); z-index: 2; box-shadow: 4px 4px 0 rgba(0, 0, 0, 0.6); margin: 0; }
+}
+/* phones held upright */
+@media (max-width: 720px) and (orientation: portrait) {
+  .gem-dialog.market .gem-box:first-of-type .ledger { grid-template-columns: 1fr 1fr; gap: 0 8px; font-size: 16px; }
+  .gem-dialog.market .gem-box:first-of-type .ledger-row:last-child { grid-column: 1 / -1; }
+  .gem-dialog.market .gem-box:first-of-type .market-icon { width: 16px; height: 16px; }
+  .gem-dialog.market .gem-box:first-of-type .info-btn { width: 22px; height: 22px; font-size: 14px; }
+  .gem-dialog.market .ledger-row { gap: 6px; }
+  .gem-dialog.setup .setup-cols { grid-template-columns: 1fr 1fr; gap: 6px; }
+  .gem-dialog.setup .castle-picker .gem-small, .gem-dialog.setup .strategy .gem-small { display: none; }
+  .gem-dialog.setup .castle-preview { max-height: 80px; }
+  .gem-dialog.setup .castle-select { max-width: 100%; font-size: 15px; }
+  .gem-dialog.setup .picker-row { gap: 2px; }
+  .gem-dialog.setup .strategy-list { grid-template-columns: 1fr; }
+  .gem-dialog.setup .strategy-list button, .gem-dialog.setup .mode-row button, .gem-dialog.setup .strength button { font-size: 15px; }
+  .gem-dialog.setup .gem-field input { width: 100%; }
+}
+@media (max-width: 720px) and (orientation: portrait) {
+  .gem-dialog.setup .picker-row { display: flex; align-items: center; }
+  .gem-dialog.setup .picker-row .castle-select { flex: 1; min-width: 0; width: 0; }
+  .gem-dialog.setup .picker-row .gem-arrow { min-width: 24px; padding: 0 2px; }
+  .gem-dialog.setup .terrain-preview { max-height: 70px; }
+}

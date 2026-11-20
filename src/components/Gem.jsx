@@ -97,13 +97,44 @@ export function MenuBar({ menus }) {
   );
 }
 
+/**
+ * Phones: when the page is pinch-zoomed (e.g. to hit a tiny cannon), a fixed dialog would open
+ * outside the visible part. This places the overlay exactly over the visible part and shrinks it
+ * back to normal size, so the dialog appears where the player is looking, without scrolling.
+ */
+function useVisibleArea() {
+  const [style, setStyle] = useState(null);
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return undefined;
+    const update = () => {
+      if (vv.scale <= 1.01) { setStyle(null); return; }
+      setStyle({
+        inset: 'auto', left: vv.offsetLeft, top: vv.offsetTop,
+        width: vv.width * vv.scale, height: vv.height * vv.scale,
+        transform: `scale(${1 / vv.scale})`, transformOrigin: '0 0',
+      });
+    };
+    update();
+    vv.addEventListener('resize', update);
+    vv.addEventListener('scroll', update);
+    return () => { vv.removeEventListener('resize', update); vv.removeEventListener('scroll', update); };
+  }, []);
+  return style;
+}
+
+/** Touch screens: do not focus a text field on opening, the keyboard would cover half the dialog. */
+const finePointer = () => typeof window !== 'undefined' && window.matchMedia?.('(pointer: fine)').matches;
+
 /** A modal dialog box with a double border; Esc triggers onClose when given. */
 export function Dialog({ title, children, onClose, className = '' }) {
   const ref = useRef(null);
+  const area = useVisibleArea();
   useEffect(() => {
     const el = ref.current;
-    const first = el?.querySelector('[data-autofocus]') || el?.querySelector('button:not([disabled]), input, select');
-    first?.focus();
+    let first = el?.querySelector('[data-autofocus]') || el?.querySelector('button:not([disabled]), input, select');
+    if (first && !finePointer() && (first.tagName === 'INPUT' || first.tagName === 'SELECT')) first = el.querySelector('button:not([disabled])');
+    first?.focus({ preventScroll: true });
     const key = (e) => {
       if (e.key === 'Escape' && onClose) {
         e.stopPropagation();
@@ -114,8 +145,9 @@ export function Dialog({ title, children, onClose, className = '' }) {
     return () => el?.removeEventListener('keydown', key);
   }, [onClose]);
   return (
-    <div className="gem-overlay">
-      <div className={`gem-dialog ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}>
+    <div className="gem-overlay" style={area || undefined}>
+      <div className={`gem-dialog ${className}`} role="dialog" aria-modal="true" aria-label={title} ref={ref}
+        style={area ? { maxHeight: area.height - 24 } : undefined}>
         {title && <h2 className="gem-dialog-title">{title}</h2>}
         {children}
       </div>

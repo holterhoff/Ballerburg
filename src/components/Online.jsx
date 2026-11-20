@@ -29,7 +29,7 @@ export function OnlineDialog({ room, online, castles, rules, onEnter, onStart, o
 
   if (!room) {
     return (
-      <Dialog title="Online spielen" onClose={onClose} className="narrow">
+      <Dialog title="Online spielen" onClose={onClose} className="narrow online">
         <label className="gem-field">
           <span>Dein Name:</span>
           <input className="online-name" value={name} maxLength={16} onChange={(e) => { setName(e.target.value); setNeedName(false); }} placeholder="z. B. Ritter Kunibert" data-autofocus />

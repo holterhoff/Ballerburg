@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useReducer, useRef, useState } from 'react';
 import { Game, DEFAULT_OPTIONS, MODES, modeOf } from './game/engine.js';
 import { sound } from './game/sound.js';
-import { SIDE_COLORS, TIME_CHOICES } from './game/render.js';
+import { SIDE_COLORS } from './game/render.js';
 import Stage from './components/Stage.jsx';
 import { MenuBar, Btn } from './components/Gem.jsx';
 import {
@@ -235,12 +235,6 @@ export default function App() {
         { separator: true },
         { label: 'Computer wählen …', disabled: !!room, onSelect: () => setDialog({ type: 'computer' }) },
         { label: 'Optionen …', disabled: inMatch, onSelect: () => setDialog({ type: 'options' }) },
-        { separator: true },
-        ...TIME_CHOICES.map(([k, label]) => ({
-          label: `Tageszeit: ${label}`,
-          checked: options.timeOfDay === k,
-          onSelect: () => { const o = { ...options, timeOfDay: k }; setOptions(o); g?.setOptions(o); },
-        })),
       ],
     },
     {
