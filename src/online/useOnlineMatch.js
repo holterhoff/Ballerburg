@@ -37,12 +37,40 @@ export function newRoomCode() {
   return Array.from({ length: 4 }, () => letters[Math.floor(Math.random() * letters.length)]).join('');
 }
 
+/**
+ * Zählt hoch, wenn die Verbindung neu aufgebaut werden muss: Handys trennen sie, sobald die App
+ * in den Hintergrund geht (z. B. um den Raumcode per Messenger zu schicken). Danach Kanäle neu öffnen.
+ */
+function useReconnect() {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let hiddenAt = 0;
+    const onVis = () => {
+      if (document.visibilityState === 'hidden') hiddenAt = Date.now();
+      else if (hiddenAt && Date.now() - hiddenAt > 1500) setN((x) => x + 1);
+    };
+    const onOnline = () => setN((x) => x + 1);
+    document.addEventListener('visibilitychange', onVis);
+    window.addEventListener('online', onOnline);
+    return () => {
+      document.removeEventListener('visibilitychange', onVis);
+      window.removeEventListener('online', onOnline);
+    };
+  }, []);
+  return [n, () => setN((x) => x + 1)];
+}
+
+/** Wie oft der Gastgeber seinen Raum in der Lobby neu ankündigt (falls ein Eintrag verloren ging). */
+const LOBBY_REFRESH_MS = 15000;
+
 /** Offene Räume, die gerade von Gastgebern angekündigt werden. */
 export function useOpenRooms(active) {
   const [rooms, setRooms] = useState([]);
   const [status, setStatus] = useState('connecting');
+  const [reconnect, refresh] = useReconnect();
   useEffect(() => {
     if (!active) return undefined;
+    setStatus('connecting');
     const ch = openChannel('lobby', {
       presenceKey: clientId(),
       onPresence: (list) => setRooms(list.filter((r) => r.code).sort((a, b) => a.createdAt - b.createdAt)),
@@ -50,8 +78,8 @@ export function useOpenRooms(active) {
       onStatus: setStatus,
     });
     return () => ch.close();
-  }, [active]);
-  return { rooms, status };
+  }, [active, reconnect]);
+  return { rooms, status, refresh };
 }
 
 /** Ist gerade etwas in Bewegung (Kugel, fallende Burgteile)? Dann einen neuen Stand erst danach übernehmen. */
@@ -138,6 +166,7 @@ export function useOnlineMatch(room, onGame, force) {
   }, [room, applyPending]);
 
   const joinedAt = useRef(Date.now());
+  const [reconnect] = useReconnect();
   // Burgwahl im Raum: jeder wählt seine eigene Burg, sobald zwei Spieler da sind (steht in der Presence)
   const choiceRef = useRef({}); // { castle, rules } – rules wählt nur der Gastgeber
   const metaRef = useRef(null);
@@ -146,7 +175,12 @@ export function useOnlineMatch(room, onGame, force) {
     const { code, name, host } = room;
     const ch = openChannel(`room-${code}`, {
       presenceKey: me,
-      onPresence: (list) => setMembers([...list].sort((a, b) => a.joinedAt - b.joinedAt)),
+      onPresence: (list) => {
+        // Nach einer Änderung (z. B. Burgwahl) führt Presence dieselbe Person kurz doppelt: nur den neuesten Eintrag behalten
+        const byId = new Map();
+        for (const m of list) if (m?.id) byId.set(m.id, m);
+        setMembers([...byId.values()].sort((x, y) => x.joinedAt - y.joinedAt));
+      },
       onStatus: (s) => {
         setStatus(s);
         if (s === 'online') ch.send('hello', { from: me });
@@ -199,26 +233,23 @@ export function useOnlineMatch(room, onGame, force) {
 
     // Gastgeber: Raum in der Lobby ankündigen
     let lobby = null;
+    let lobbyTimer = null;
     if (host) {
       lobby = openChannel('lobby', { presenceKey: me, onPresence: () => {}, onMessage: () => {} });
-      lobby.track({ code, hostName: name, createdAt: Date.now() });
+      const announce = { code, hostName: name, createdAt: joinedAt.current };
+      lobby.track(announce);
+      lobbyTimer = setInterval(() => lobby.track({ ...announce, at: Date.now() }), LOBBY_REFRESH_MS);
     }
 
-    // Handy entsperrt oder Netz wieder da: neuesten Stand anfordern
-    const wake = () => { if (document.visibilityState === 'visible') ch.send('hello', { from: me }); };
-    document.addEventListener('visibilitychange', wake);
-    window.addEventListener('online', wake);
-
     return () => {
-      document.removeEventListener('visibilitychange', wake);
-      window.removeEventListener('online', wake);
+      clearInterval(lobbyTimer);
       clearTimeout(sendTimer.current);
       ch.send('leave', { from: me });
       ch.close();
       lobby?.close();
       chRef.current = null;
     };
-  }, [room, me, adopt, applyPending]);
+  }, [room, me, adopt, applyPending, reconnect]);
 
   /** Eigene Wahl im Raum (Burg, beim Gastgeber auch die Spielart); die anderen sehen sie sofort. */
   const choose = useCallback((patch) => {

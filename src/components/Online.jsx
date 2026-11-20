@@ -17,11 +17,12 @@ const saveName = (n) => { try { localStorage.setItem(NAME_KEY, n); } catch { /* 
 export function OnlineDialog({ room, online, castles, rules, onEnter, onStart, onLeave, onClose }) {
   const [name, setName] = useState(loadName);
   const [code, setCode] = useState('');
-  const { rooms, status } = useOpenRooms(!room);
+  const { rooms, status, refresh } = useOpenRooms(!room);
   const clean = name.trim().slice(0, 16);
 
+  const [needName, setNeedName] = useState(false);
   const enter = (c, host) => {
-    if (!clean) return;
+    if (!clean) { setNeedName(true); document.querySelector('.online-name')?.focus(); return; }
     saveName(clean);
     onEnter({ code: c, name: clean, host });
   };
@@ -31,8 +32,9 @@ export function OnlineDialog({ room, online, castles, rules, onEnter, onStart, o
       <Dialog title="Online spielen" onClose={onClose} className="narrow">
         <label className="gem-field">
           <span>Dein Name:</span>
-          <input value={name} maxLength={16} onChange={(e) => setName(e.target.value)} placeholder="z. B. Ritter Kunibert" data-autofocus />
+          <input className="online-name" value={name} maxLength={16} onChange={(e) => { setName(e.target.value); setNeedName(false); }} placeholder="z. B. Ritter Kunibert" data-autofocus />
         </label>
+        {needName && <p className="gem-small online-warn">Bitte gib zuerst deinen Namen ein.</p>}
         <fieldset className="gem-box">
           <legend>Neuer Raum</legend>
           <p className="gem-small">Du eröffnest einen Raum und spielst die linke Burg. Den Raumcode gibst du deinem Gegner.</p>
@@ -45,13 +47,18 @@ export function OnlineDialog({ room, online, castles, rules, onEnter, onStart, o
             <input value={code} maxLength={4} onChange={(e) => setCode(e.target.value.toUpperCase().replace(/[^A-Z]/g, ''))} placeholder="ABCD" />
             <Btn disabled={!clean || code.length !== 4} onClick={() => enter(code, false)}>Beitreten</Btn>
           </label>
-          <h3>Offene Räume</h3>
-          {status === 'error' && <p className="gem-small">Keine Verbindung zum Server.</p>}
-          {status !== 'error' && rooms.length === 0 && <p className="gem-small">Gerade wartet niemand. Eröffne selbst einen Raum.</p>}
+          <div className="online-rooms-head">
+            <h3>Offene Räume</h3>
+            <button className="gem-btn small" onClick={refresh} aria-label="Raumliste aktualisieren">↻ Aktualisieren</button>
+          </div>
+          {status === 'connecting' && <p className="gem-small">Suche offene Räume …</p>}
+          {status === 'error' && <p className="gem-small">Keine Verbindung zum Server. Tippe auf „Aktualisieren“.</p>}
+          {status === 'online' && rooms.length === 0 && <p className="gem-small">Gerade wartet niemand. Eröffne selbst einen Raum.</p>}
+          {rooms.length > 0 && <p className="gem-small">Tippe auf einen Raum, um beizutreten. Den Code brauchst du dann nicht.</p>}
           <ul className="online-rooms">
             {rooms.map((r) => (
               <li key={r.code}>
-                <button className="gem-btn" disabled={!clean} onClick={() => enter(r.code, false)}>
+                <button className="gem-btn" onClick={() => enter(r.code, false)}>
                   {r.code} · {r.hostName}
                 </button>
               </li>
@@ -79,8 +86,11 @@ function RoomView({ room, online, castles, rules, onStart, onLeave, onClose }) {
   const watchers = members.slice(2);
   const mySeat = players.findIndex((m) => m.id === me);
   const ready = players.length === 2;
-  const myCastle = players[mySeat]?.castle;
-  const hostRules = players[0]?.rules || rules;
+  // eigene Wahl sofort anzeigen, nicht erst, wenn der Server sie zurückmeldet
+  const [pickedCastle, setPickedCastle] = useState(null);
+  const [pickedRules, setPickedRules] = useState(null);
+  const myCastle = pickedCastle || players[mySeat]?.castle;
+  const hostRules = (isHost && pickedRules) || players[0]?.rules || rules;
 
   // Sobald zwei da sind: eigene Burg vorbelegen (die bisherige Wahl dieser Seite), der Gastgeber auch die Spielart
   const [preset, setPreset] = useState(false);
@@ -114,7 +124,7 @@ function RoomView({ room, online, castles, rules, onStart, onLeave, onClose }) {
       {ready && mySeat >= 0 && (
         <fieldset className="gem-box">
           <legend>Deine Burg ({mySeat === 0 ? 'links' : 'rechts'})</legend>
-          <CastlePicker side={mySeat} value={myCastle || castles[mySeat]} original={hostRules === 'original'} onChange={(c) => choose({ castle: c })} />
+          <CastlePicker side={mySeat} value={myCastle || castles[mySeat]} original={hostRules === 'original'} onChange={(c) => { setPickedCastle(c); choose({ castle: c }); }} />
         </fieldset>
       )}
       {ready && (
@@ -122,7 +132,7 @@ function RoomView({ room, online, castles, rules, onStart, onLeave, onClose }) {
           <legend>Spielart</legend>
           {isHost ? (
             <label className="gem-field">
-              <select value={hostRules} onChange={(e) => choose({ rules: e.target.value })}>
+              <select value={hostRules} onChange={(e) => { setPickedRules(e.target.value); choose({ rules: e.target.value }); }}>
                 {Object.entries(RULES_LABEL).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
               </select>
             </label>
@@ -136,7 +146,7 @@ function RoomView({ room, online, castles, rules, onStart, onLeave, onClose }) {
         : <p className="gem-small">Wähle deine Burg. Der Gastgeber startet die Partie.</p>)}
       <div className="gem-actions">
         <Btn onClick={onLeave}>Raum verlassen</Btn>
-        {isHost && <Btn def disabled={!ready} onClick={() => onStart({ castles: players.map((m, i) => m.castle || castles[i]), rules: hostRules })}>Partie starten</Btn>}
+        {isHost && <Btn def disabled={!ready} onClick={() => onStart({ castles: players.map((m, i) => (i === mySeat ? myCastle : m.castle) || castles[i]), rules: hostRules })}>Partie starten</Btn>}
       </div>
     </Dialog>
   );
