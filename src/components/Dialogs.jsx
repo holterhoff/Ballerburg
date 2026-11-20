@@ -3,7 +3,7 @@ import { Dialog, Btn, Spinner } from './Gem.jsx';
 import Cannon3D from './Cannon3D.jsx';
 import { MARKET, STRATEGIES, HEAT_MAX } from '../game/engine.js';
 import { ANGLE_MAX, POWDER_MIN, POWDER_MAX, H } from '../game/constants.js';
-import { CASTLES, buildCastle, chamberCapacity } from '../game/castles.js';
+import { CASTLES, buildCastle, chamberCapacity, startOf } from '../game/castles.js';
 import { generateTerrain } from '../game/terrain.js';
 import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS, TIME_CHOICES } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
@@ -208,13 +208,13 @@ function capsOf(key) {
   return `${chamberCapacity('gold', c.gold)} Gold · ${chamberCapacity('powder', c.powder)} Pulver · ${chamberCapacity('balls', c.balls)} Kugeln`;
 }
 
-function CastlePicker({ side, value, onChange }) {
+function CastlePicker({ side, value, original, onChange }) {
   const keys = Object.keys(CASTLES);
   const i = keys.indexOf(value);
   const ref = useRef(null);
   useEffect(() => {
-    drawCastlePreview(ref.current, buildCastle(value, side, H - 10), side, CASTLES[value].start);
-  }, [value, side]);
+    drawCastlePreview(ref.current, buildCastle(value, side, H - 10), side, startOf(value, original));
+  }, [value, side, original]);
   return (
     <div className="castle-picker">
       <canvas ref={ref} className="castle-preview" role="img" aria-label={`Vorschau ${CASTLES[value].name}`} />
@@ -285,7 +285,7 @@ export function SetupDialog({ initial, original, onStart, onCancel }) {
             ) : (
               <StrategyPicker value={s} onChange={(v) => set(i, v)} />
             )}
-            <CastlePicker side={i} value={s.castle} onChange={(c) => set(i, { castle: c })} />
+            <CastlePicker side={i} value={s.castle} original={original} onChange={(c) => set(i, { castle: c })} />
           </fieldset>
         ))}
       </div>
@@ -383,6 +383,7 @@ const RULES = [
   ]],
   ['Erweiterungen', [
     'Diese Fassung hat ein paar Regeln, die es im Original nicht gab. Standard ist die Spielart Original ohne Erweiterungen. Unter Modus → Spielart: Erweitert schaltest du alle ein, unter Modus → Optionen jede einzeln.',
+    'Ausgeglichene Original-Burgen: Kruses sechs Burgen sind unterschiedlich stark. Im Original starten alle mit 500 Talern und den Werten aus Kruses Burgendatei. Sobald eine Erweiterung an ist, beginnen die starken Burgen mit weniger Gold, Pulver, Kugeln und Volk, damit die Wahl fair bleibt.',
     'Der Computer baut Fördertürme: Im Original tun das nur Baron Bombast, Hauptmann Hagen, Kämmerer Kuno und die Eiserne Erna. Sobald eine Erweiterung an ist, bauen auch die anderen Computer bis zu drei Türme und behalten dabei Geld für Pulver und Kugeln zurück.',
     'Hänge rutschen nach: Unterhöhlte Erde rutscht in das Loch.',
     'Burgteile stürzen ab: Was keinen Halt mehr hat, fällt herunter.',

@@ -52,6 +52,15 @@ const gable = (x0, x1, y, h) => [[x0 - 2, y], [x1 + 2, y], [(x0 + x1) / 2, y + h
 export const STORE_CELL = { gold: [8, 10, 150], powder: [9, 9, 30], balls: [6, 6, 1] };
 
 /** How much a chamber [x, y, w, h] of the given kind can hold. */
+/**
+ * What a castle starts with. Mode "Original": the original castles start with Kruse's values from
+ * BALLER.DAT. Mode "Erweitert": they start with the balanced values. The other castles are the same in both.
+ */
+export function startOf(key, original) {
+  const c = CASTLES[key];
+  return original || !c.balancedStart ? c.start : c.balancedStart;
+}
+
 export function chamberCapacity(kind, [, , w, h]) {
   const [cw, ch, unit] = STORE_CELL[kind];
   return Math.floor(w / cw) * Math.floor(h / ch) * unit;
@@ -741,10 +750,10 @@ function datNumbers(text) {
 }
 
 /**
- * Neufassung: Die Original-Burgen sind sehr unterschiedlich stark (im Computer-Turnier gewann Burg 2
- * 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen die starken mit weniger Gold, Pulver,
- * Kugeln und Volk. Umrisse und Geschütze bleiben wie im Original.
- * Die Originalwerte stehen weiter in BALLER.DAT.
+ * Neufassung, nur im Modus Erweitert: Die Original-Burgen sind sehr unterschiedlich stark (im
+ * Computer-Turnier gewann Burg 2 96 % ihrer Partien). Damit die Wahl fair bleibt, beginnen die
+ * starken dort mit weniger Gold, Pulver, Kugeln und Volk. Umrisse und Geschütze bleiben wie im Original.
+ * Im Modus Original gelten Kruses Werte aus BALLER.DAT (siehe startOf).
  */
 const BALANCE = {
   original1: { start: { money: 520, pop: 240 } },
@@ -780,7 +789,9 @@ function originalCastles(text) {
       name: `${ORIGINAL_NAMES[k - 1] ?? `Burg ${k}`} (Original)`,
       desc: `Burg nach der Idee von Eckhard Kruse, dem Erfinder von Ballerburg (1987).`,
       original: true,
-      start: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40], ...BALANCE[`original${k}`]?.start },
+      // Kruse's start values; the balanced ones are used only in mode "Erweitert"
+      start: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40] },
+      balancedStart: { money: bg[37], powder: bg[38], balls: bg[39], pop: bg[40], ...BALANCE[`original${k}`]?.start },
       ...design(bg[0], ({ body, room }) => {
         // draw(): the first four values are unused, then polygons; -2,a,b switches to the roof pattern
         let j = 4, mat = 'wall';

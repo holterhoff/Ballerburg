@@ -17,7 +17,7 @@ import { GREETINGS, KRUSE_GREETING, KRUSE_SAYINGS, ROASTS, PRAISE } from './king
 import {
   W, H, CELL, G, STEPS_PER_SECOND, ANGLE_MAX, POWDER_MIN, POWDER_MAX, DEFAULT_AIM, SIZES, EARTH, BRICK,
 } from './constants.js';
-import { CASTLES, buildCastle } from './castles.js';
+import { CASTLES, buildCastle, startOf } from './castles.js';
 import { generateTerrain } from './terrain.js';
 import { sound } from './sound.js';
 
@@ -212,7 +212,7 @@ export class Game {
     /** Neufassung: where each castle had walls at the start, so the computer knows what to repair. */
     this.blueprint = [new Uint8Array(W * H), new Uint8Array(W * H)];
     this.players = cfg.players.map((pc, i) => {
-      const c = CASTLES[pc.castle];
+      const start = startOf(pc.castle, this.originalWind());
       const built = buildCastle(pc.castle, i, this.baseY[i]);
       for (const [x, y, m] of built.pixels) if (x >= 0 && x < W && y >= 0 && y < H) { this.solid[y * W + x] = m; this.blueprint[i][y * W + x] = 1; }
       for (const [x, y] of built.rooms) if (x >= 0 && x < W && y >= 0 && y < H) this.interior[y * W + x] = i + 1;
@@ -223,8 +223,8 @@ export class Game {
       return {
         idx: i, name: pc.name, type: pc.type, castle: pc.castle,
         strategy: pc.strategy ?? 2, strength: clamp(pc.strength ?? 2, 1, 4),
-        money: c.start.money, powder: c.start.powder, balls: c.start.balls, pop: c.start.pop,
-        startPop: c.start.pop, caps: built.caps, // original: the chamber size limits what can be stored
+        money: start.money, powder: start.powder, balls: start.balls, pop: start.pop,
+        startPop: start.pop, startMoney: start.money, caps: built.caps, // original: the chamber size limits what can be stored
         tax: 20, // original: st[n] = 20
         visits: 0, visitStreak: 0, visitedThisTurn: false, lastAudience: null, // original: kn[n]
         width: built.width, cannonSlots: built.cannonSlots, vaneSlot: built.vaneSlot,
@@ -1384,7 +1384,7 @@ export class Game {
       if (p.money > this.prices.mine && mines < 3) s.push('Warum kauft Ihr nicht einen Förderturm …');
       if ((p.tax > 40 && p.pop < p.startPop) || p.tax > 70) s.push('Vielleicht solltet Ihr Unsere Steuern senken …');
       if (!this.hasVane(p.idx)) s.push('Seid Ihr sicher, dass Ihr ohne Windfahne zurechtkommt?');
-      if (p.money > CASTLES[p.castle].start.money && p.pop > p.startPop && cannons > 1) s[1] = mines < 2 ? 'Wir sind mit Euren Leistungen zufrieden.' : 'Ausgezeichnet, weiter so!';
+      if (p.money > p.startMoney && p.pop > p.startPop && cannons > 1) s[1] = mines < 2 ? 'Wir sind mit Euren Leistungen zufrieden.' : 'Ausgezeichnet, weiter so!';
       if (mines > 2) s.push('Ausgezeichnet, weiter so!');
       if (cannons < 1 && p.money < this.prices.cannon) s.push('Wenn das so weitergeht, entlassen Wir Euch!');
       if (p.visitStreak > 4) s.push('Ihr müsst Uns nicht jede Runde besuchen.', 'Ihr müsst Uns nicht jede Runde besuchen.', 'Ihr müsst Uns nicht jede Runde besuchen.');
