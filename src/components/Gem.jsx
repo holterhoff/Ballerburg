@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 
 /**
  * Menu bar in the style of a 1980s desktop (GEM): titles open drop-down menus on click,
@@ -6,7 +6,11 @@ import { useEffect, useRef, useState } from 'react';
  */
 export function MenuBar({ menus }) {
   const [open, setOpen] = useState(-1);
+  const [pos, setPos] = useState(null);
+  const [tick, setTick] = useState(0);
   const ref = useRef(null);
+  const titles = useRef([]);
+  const drop = useRef(null);
 
   useEffect(() => {
     if (open < 0) return undefined;
@@ -14,13 +18,32 @@ export function MenuBar({ menus }) {
       if (!ref.current?.contains(e.target)) setOpen(-1);
     };
     const key = (e) => e.key === 'Escape' && setOpen(-1);
+    // phones resize the window when the address bar slides in or out: keep the menu, move it
+    const move = () => setTick((n) => n + 1);
     document.addEventListener('pointerdown', close);
     document.addEventListener('keydown', key);
+    window.addEventListener('resize', move);
     return () => {
       document.removeEventListener('pointerdown', close);
       document.removeEventListener('keydown', key);
+      window.removeEventListener('resize', move);
     };
   }, [open]);
+
+  // The drop-down is placed with position: fixed below its title, so the scrolling
+  // menu bar on phones cannot clip it, and it is pushed back inside the screen edge.
+  useLayoutEffect(() => {
+    if (open < 0) {
+      setPos(null);
+      return;
+    }
+    const t = titles.current[open]?.getBoundingClientRect();
+    if (!t) return;
+    const w = drop.current?.offsetWidth || 0;
+    const vw = document.documentElement.clientWidth;
+    const left = Math.max(4, Math.min(t.left, vw - w - 4));
+    setPos({ left, top: t.bottom, maxHeight: window.innerHeight - t.bottom - 8 });
+  }, [open, tick]);
 
   return (
     <nav className="gem-menubar" ref={ref} aria-label="Hauptmenü">
@@ -32,13 +55,20 @@ export function MenuBar({ menus }) {
               aria-haspopup="true"
               aria-expanded={open === i}
               className="gem-title"
+              ref={(el) => (titles.current[i] = el)}
               onClick={() => setOpen(open === i ? -1 : i)}
-              onPointerEnter={() => open >= 0 && setOpen(i)}
+              // only a mouse slides from menu to menu; on touch the tap itself decides
+              onPointerEnter={(e) => e.pointerType === 'mouse' && open >= 0 && setOpen(i)}
             >
               {m.title}
             </button>
             {open === i && (
-              <ul className="gem-dropdown" role="menu">
+              <ul
+                className="gem-dropdown"
+                role="menu"
+                ref={drop}
+                style={pos ? { left: pos.left, top: pos.top, maxHeight: pos.maxHeight } : { visibility: 'hidden' }}
+              >
                 {m.items.map((it, j) =>
                   it.separator ? (
                     <li key={`s${j}`} className="gem-sep" role="separator" />
