@@ -1380,9 +1380,20 @@ export class Game {
    * The king's audience. Conditions follow koenig() in baller2.c; the wording is our own.
    * He refuses when visited twice in one move, too often in a row, or at random (1 in 20).
    */
-  audience() {
+  /**
+   * @param {{tip?: boolean}} [opts] tip: the king showed a speech bubble, so this audience gives his advice
+   */
+  audience(opts = {}) {
     const p = this.cur;
     if (this.phase !== 'aim') return null;
+    // Neufassung: the speech bubble over the king promises advice, and he keeps that promise
+    const advice = opts.tip && this.advice(p);
+    if (advice) {
+      p.visitedThisTurn = true;
+      p.visits++;
+      p.lastAudience = advice.text;
+      return { text: advice.text, tip: true, level: advice.level };
+    }
     const cannons = this.objectsOf(p.idx, 'cannon').length;
     const mines = this.objectsOf(p.idx, 'mine').length;
     let result;

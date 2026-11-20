@@ -225,6 +225,11 @@ export function KingDialog({ result, onClose }) {
           <p className="gem-text king-quote">„{result.text}“</p>
           <p className="gem-small">Ballerburg: erfunden 1987 von Eckhard Kruse.</p>
         </>
+      ) : result.tip ? (
+        <>
+          <p className="gem-text">Der König rät Euch:</p>
+          <p className="gem-text king-quote">„{result.text}“</p>
+        </>
       ) : (
         <>
           <p className="gem-text">Der König spricht:</p>

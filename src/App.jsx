@@ -130,6 +130,12 @@ export default function App() {
   const p = g?.cur;
   const humanTurn = !!g && p.type === 'human' && g.phase === 'aim';
   const advice = humanTurn ? g.advice(p) : null; // recomputed live, so a purchase updates it at once
+  // Neufassung: a speech bubble over the king when he has advice. Warnings always, friendly tips
+  // only now and then (decided once per move), and gone once you have been to see him this move.
+  const tipDice = useRef({ move: -1, show: false });
+  if (g && tipDice.current.move !== g.move) tipDice.current = { move: g.move, show: Math.random() < 0.5 };
+  const hasKingObj = humanTurn && g.objectsOf(g.current, 'king').length > 0;
+  const kingTip = advice && hasKingObj && !p.visitedThisTurn && (advice.level !== 'tip' || tipDice.current.show) ? advice.level : null;
 
   const setMode = (types) => {
     const next = sides.map((s, i) => ({ ...s, type: types[i] }));
@@ -161,7 +167,7 @@ export default function App() {
     setDialog({ type: 'aim', id });
   };
   const openMarket = () => setDialog({ type: 'market' });
-  const openKing = () => { const r = g.audience(); if (r) setDialog({ type: 'king', result: r }); };
+  const openKing = () => { const r = g.audience({ tip: !!kingTip }); if (r) setDialog({ type: 'king', result: r }); };
 
   /**
    * A click or tap on the field. `tol` is how many world pixels a finger may miss by: on a phone a
@@ -268,7 +274,7 @@ export default function App() {
         {g && (
           <div className="play">
           <div className="screen">
-            <Stage game={g} onPick={onPick} />
+            <Stage game={g} onPick={onPick} kingTip={dialog ? null : kingTip} />
             <div className="roundbox">{inMatch ? `Raum ${room.code} · ` : ''}Runde {g.round}{g.options.extensions.storm && g.weather !== 'klar' ? (g.weather === 'gewitter' ? ' · Gewitter' : ' · Wolken ziehen auf') : ''}</div>
             {g.building && (
               <div className="buildbox" role="status">
@@ -299,7 +305,9 @@ export default function App() {
             </div>
 
           <section className="statusline" aria-live="polite">
-            {advice ? (
+            {kingTip ? (
+              <span className={`advice ${advice.level}`}><b>Der König</b> möchte Euch etwas sagen. Tippt auf ihn oder auf „König“.</span>
+            ) : advice && p.visitedThisTurn ? (
               <span className={`advice ${advice.level}`}><b>Der König:</b> {advice.text}</span>
             ) : <span className="hint">
               {humanTurn

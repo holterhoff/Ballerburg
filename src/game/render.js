@@ -953,3 +953,36 @@ export function drawTerrainPreview(canvas, heights) {
     c.fillRect(x, top, 1, 2);
   }
 }
+
+/**
+ * Neufassung: a speech bubble over your own king when he has advice. Tap the king for an audience
+ * to hear it. "!" for warnings, three dots for a friendly tip. Drawn on top of everything.
+ */
+export function drawKingTip(c, game, t, level) {
+  const king = game.objectsOf(game.current, 'king')[0];
+  if (!king) return;
+  // drawn on a 2-pixel grid, so the bubble is big enough for a finger and for young eyes
+  const S = 2, w = 13, h = 9;
+  const left = king.owner === 0;
+  const bob = Math.round(Math.sin(t * 3)) * S;
+  const x = Math.round(Math.min(W - w * S - 1, Math.max(1, king.x + king.w / 2 - (left ? 3 : w - 3) * S)));
+  const y = Math.max(1, Math.round(king.y - (h + 3) * S - 1 + bob));
+  const dot = (i, j, wi = 1, hi = 1) => c.fillRect(x + i * S, y + j * S, wi * S, hi * S);
+  c.fillStyle = '#1d1b22';
+  dot(1, 0, w - 2, h); dot(0, 1, w, h - 2);
+  // tail towards the king
+  const tx = left ? 2 : w - 5;
+  dot(tx, h, 3, 1); dot(left ? tx : tx + 1, h + 1, 2, 1); dot(left ? tx : tx + 2, h + 2, 1, 1);
+  c.fillStyle = '#fffbe8';
+  dot(1, 1, w - 2, h - 2);
+  dot(left ? tx + 1 : tx + 1, h - 1, 1, 1);
+  if (level === 'tip') {
+    c.fillStyle = '#1d1b22';
+    const n = Math.floor(t * 2.5) % 4;
+    for (let i = 0; i < 3; i++) if (n === 0 || i < n) dot(3 + i * 3, 4);
+  } else {
+    c.fillStyle = level === 'alarm' ? '#c0392b' : '#d9822b';
+    dot(6, 2, 1, 3);
+    dot(6, 6);
+  }
+}

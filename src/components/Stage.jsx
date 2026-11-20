@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react';
 import { W, H, RES, MAX_STAGE_PX } from '../game/constants.js';
-import { createRenderer, drawScene, resizeRenderer } from '../game/render.js';
+import { createRenderer, drawScene, drawKingTip, resizeRenderer } from '../game/render.js';
 
 /** Canvas that runs the game loop and turns pointer input into world coordinates. */
-export default function Stage({ game, aim, onPick }) {
+export default function Stage({ game, aim, kingTip, onPick }) {
   const lastPaint = useRef(null);
   /** A finger on the field: picked only when it lifts without moving, so pinching and panning stay free. */
   const touch = useRef(null);
@@ -11,6 +11,8 @@ export default function Stage({ game, aim, onPick }) {
   const hover = useRef(null);
   const aimRef = useRef(aim);
   aimRef.current = aim;
+  const tipRef = useRef(kingTip);
+  tipRef.current = kingTip;
 
   useEffect(() => {
     if (!game) return undefined;
@@ -47,6 +49,7 @@ export default function Stage({ game, aim, onPick }) {
       ctx.setTransform(size.pw / W, 0, 0, size.ph / H, 0, 0);
       ctx.imageSmoothingEnabled = false;
       drawScene(ctx, game, r, { hover: hover.current, time: now / 1000, aim: aimRef.current });
+      if (tipRef.current) drawKingTip(ctx, game, now / 1000, tipRef.current);
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
