@@ -233,3 +233,11 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
   .desk-main { padding: 6px 6px 12px; }
   .play { width: 100%; }
 }
+
+/* ---------- online rooms ---------- */
+.online-rooms { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.online-members { list-style: none; margin: 0; padding: 0; }
+.online-members li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px; padding: 3px 0 3px 8px; border-left: 6px solid var(--side, var(--grey-dark)); margin: 4px 0; }
+.online-side { min-width: 4.5em; color: var(--grey-dark); }
+.online-watch { color: var(--grey-dark); }
+.online-code { font-family: var(--font-head); letter-spacing: 0.15em; font-size: 26px; }

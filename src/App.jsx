@@ -8,6 +8,8 @@ import {
   Notice, AimDialog, MarketDialog, KingDialog, SetupDialog, ComputerDialog, OptionsDialog,
   RulesDialog, ScoresDialog, AboutDialog, GameOverDialog,
 } from './components/Dialogs.jsx';
+import { OnlineDialog } from './components/Online.jsx';
+import { useOnlineMatch } from './online/useOnlineMatch.js';
 
 /**
  * Default match: Klausenburg against Mittelturm, the computer as "Vogt Veit" who goes for the king.
@@ -101,6 +103,14 @@ export default function App() {
     force();
   }, [sides, terrain, options]);
 
+  // Online: the room this device is in (null = playing on this device only)
+  const [room, setRoom] = useState(null);
+  const online = useOnlineMatch(room, (game) => {
+    if (game) { gameRef.current = game; setDialog(null); force(); }
+  }, force);
+  const inMatch = !!room && !!online.seats;
+  const leaveRoom = () => { online.leave(); setRoom(null); setDialog(null); start(); };
+
   useEffect(() => {
     start();
     // the very first game starts right away, like the original after loading
@@ -108,6 +118,7 @@ export default function App() {
   }, []);
 
   const g = gameRef.current;
+  if (import.meta.env.DEV) window.__bbGame = g; // nur zum Testen im Entwicklungsserver
   const p = g?.cur;
   const humanTurn = !!g && p.type === 'human' && g.phase === 'aim';
   const advice = humanTurn ? g.advice(p) : null; // recomputed live, so a purchase updates it at once
@@ -180,7 +191,7 @@ export default function App() {
     {
       title: 'Spiel',
       items: [
-        { label: 'Neues Spiel …', onSelect: () => setDialog({ type: 'setup' }) },
+        { label: 'Neues Spiel …', disabled: inMatch, onSelect: () => setDialog({ type: 'setup' }) },
         { label: 'Aufgeben', disabled: !humanTurn, onSelect: () => g.surrender() },
         { separator: true },
         { label: muted ? 'Ton einschalten' : 'Ton ausschalten', onSelect: () => { sound.setMuted(!muted); setMuted(!muted); } },
@@ -190,22 +201,29 @@ export default function App() {
     {
       title: 'Modus',
       items: [
-        { label: 'Spieler – Spieler', checked: mode === 'human-human', onSelect: () => setMode(['human', 'human']) },
-        { label: 'Spieler – Computer', checked: mode === 'human-ai', onSelect: () => setMode(['human', 'ai']) },
-        { label: 'Computer – Spieler', checked: mode === 'ai-human', onSelect: () => setMode(['ai', 'human']) },
-        { label: 'Computer – Computer', checked: mode === 'ai-ai', onSelect: () => setMode(['ai', 'ai']) },
+        { label: 'Spieler – Spieler', disabled: !!room, checked: mode === 'human-human', onSelect: () => setMode(['human', 'human']) },
+        { label: 'Spieler – Computer', disabled: !!room, checked: mode === 'human-ai', onSelect: () => setMode(['human', 'ai']) },
+        { label: 'Computer – Spieler', disabled: !!room, checked: mode === 'ai-human', onSelect: () => setMode(['ai', 'human']) },
+        { label: 'Computer – Computer', disabled: !!room, checked: mode === 'ai-ai', onSelect: () => setMode(['ai', 'ai']) },
         { separator: true },
-        { label: 'Spielart: Original', checked: modeOf(options.extensions) === 'original', onSelect: () => pickRules('original') },
-        { label: 'Spielart: Erweitert', checked: modeOf(options.extensions) === 'erweitert', onSelect: () => pickRules('erweitert') },
+        { label: 'Spielart: Original', disabled: inMatch, checked: modeOf(options.extensions) === 'original', onSelect: () => pickRules('original') },
+        { label: 'Spielart: Erweitert', disabled: inMatch, checked: modeOf(options.extensions) === 'erweitert', onSelect: () => pickRules('erweitert') },
         { separator: true },
-        { label: 'Computer wählen …', onSelect: () => setDialog({ type: 'computer' }) },
-        { label: 'Optionen …', onSelect: () => setDialog({ type: 'options' }) },
+        { label: 'Computer wählen …', disabled: !!room, onSelect: () => setDialog({ type: 'computer' }) },
+        { label: 'Optionen …', disabled: inMatch, onSelect: () => setDialog({ type: 'options' }) },
         { separator: true },
         ...TIME_CHOICES.map(([k, label]) => ({
           label: `Tageszeit: ${label}`,
           checked: options.timeOfDay === k,
           onSelect: () => { const o = { ...options, timeOfDay: k }; setOptions(o); g?.setOptions(o); },
         })),
+      ],
+    },
+    {
+      title: 'Online',
+      items: [
+        { label: room ? `Raum ${room.code} …` : 'Online spielen …', onSelect: () => setDialog({ type: 'online' }) },
+        { label: 'Raum verlassen', disabled: !room, onSelect: leaveRoom },
       ],
     },
     { title: 'Regeln', items: [{ label: 'Spielregeln …', onSelect: () => setDialog({ type: 'rules' }) }] },
@@ -231,7 +249,7 @@ export default function App() {
           <div className="play">
           <div className="screen">
             <Stage game={g} onPick={onPick} />
-            <div className="roundbox">Runde {g.round}{g.options.extensions.storm && g.weather !== 'klar' ? (g.weather === 'gewitter' ? ' · Gewitter' : ' · Wolken ziehen auf') : ''}</div>
+            <div className="roundbox">{inMatch ? `Raum ${room.code} · ` : ''}Runde {g.round}{g.options.extensions.storm && g.weather !== 'klar' ? (g.weather === 'gewitter' ? ' · Gewitter' : ' · Wolken ziehen auf') : ''}</div>
             {g.building && (
               <div className="buildbox" role="status">
                 <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
@@ -266,7 +284,8 @@ export default function App() {
             ) : <span className="hint">
               {humanTurn
                 ? 'Geschütz antippen zum Schießen · Lagerkammer für den Markt · König für eine Audienz'
-                : g.phase === 'ai' ? `${p.name} überlegt …` : g.phase === 'flying' ? 'Die Kugel fliegt …' : ''}
+                : g.phase === 'ai' ? `${p.name} überlegt …` : g.phase === 'flying' ? 'Die Kugel fliegt …'
+                : g.phase === 'remote' ? (online.opponentAway ? `${p.name} ist gerade nicht verbunden. Es geht weiter, sobald die Verbindung zurück ist.` : `Warte auf den Zug von ${p.name} …`) : ''}
             </span>}
             {lastMsg && <span className={`msg ${lastMsg.tone}`}>{lastMsg.text}</span>}
           </section>
@@ -285,7 +304,7 @@ export default function App() {
           onSwitch={(id) => { g.selected = id; setDialog({ type: 'aim', id }); }}
           game={g}
           onCancel={close}
-          onFire={(a, pw) => { close(); if (!g.fire(dialog.id, a, pw)) sound.error(); }}
+          onFire={(a, pw) => { close(); if (!(inMatch ? online.fire(dialog.id, a, pw) : g.fire(dialog.id, a, pw))) sound.error(); }}
         />
       )}
       {dialog?.type === 'market' && g && <MarketDialog game={g} onClose={() => { close(); force(); }} />}
@@ -308,10 +327,21 @@ export default function App() {
       {dialog?.type === 'options' && (
         <OptionsDialog options={options} onCancel={close} onApply={(o) => { setOptions(o); g?.setOptions(o); close(); }} />
       )}
+      {dialog?.type === 'online' && (
+        <OnlineDialog
+          room={room}
+          online={online}
+          castles={sides.map((s) => s.castle)}
+          onEnter={(r) => setRoom(r)}
+          onStart={() => online.start({ castles: sides.map((s) => s.castle), terrain, options })}
+          onLeave={leaveRoom}
+          onClose={close}
+        />
+      )}
       {dialog?.type === 'rules' && <RulesDialog onClose={close} />}
       {dialog?.type === 'scores' && <ScoresDialog onClose={close} />}
       {dialog?.type === 'about' && <AboutDialog onClose={close} />}
-      {over && !dialog && <GameOverDialog game={g} onNew={() => setDialog({ type: 'setup' })} onScores={() => setDialog({ type: 'scores' })} />}
+      {over && !dialog && <GameOverDialog game={g} onNew={() => setDialog({ type: room ? 'online' : 'setup' })} onScores={() => setDialog({ type: 'scores' })} />}
       {!g && <Btn onClick={() => start()}>Start</Btn>}
     </div>
   );

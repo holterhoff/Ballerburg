@@ -362,7 +362,11 @@ export class Game {
     this.hasFired = false;
     this.firedCannon = null;
     this.building = null;
-    if (this.cur.type === 'ai') {
+    if (this.cur.type === 'remote') {
+      // Online: the other castle is moved by its own device; this one only waits for its moves
+      this.phase = 'remote';
+      this.selected = null;
+    } else if (this.cur.type === 'ai') {
       this.phase = 'ai';
       this.aiTimer = 0.9;
       this.selected = null;
@@ -412,6 +416,7 @@ export class Game {
       return;
     }
     this.startMove();
+    this.onTurnEnd?.(mover.idx);
   }
 
   /** Original: rechnen() — taxes, population, shaft towers and market prices after each move. */
@@ -467,6 +472,7 @@ export class Game {
     recordResult(this.players[winner].name, this.players[1 - winner].name);
     sound.fanfare();
     this.emit();
+    this.onTurnEnd?.(this.current);
   }
 
   surrender() {
@@ -505,6 +511,19 @@ export class Game {
     const v = 0.4 + 0.25 * powder;
     const a = angle / 57.296;
     return this.launch(c, powder, v * Math.cos(a) * this.dir(c.owner), v * Math.sin(a));
+  }
+
+  /**
+   * Online: replay a shot the other player fired on their device. The flight is drawn here as well;
+   * the result of the move then arrives as the new game state from that device.
+   */
+  remoteFire(id, angle, powder) {
+    if (this.phase !== 'remote') return false;
+    this.phase = 'aim';
+    const ok = this.fire(id, angle, powder);
+    if (ok) this.returnPhase = 'remote';
+    else this.phase = 'remote';
+    return ok;
   }
 
   launch(c, cost, vx, vy) {
