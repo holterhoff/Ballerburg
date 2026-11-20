@@ -154,9 +154,18 @@ button, input, select { font-family: var(--font); font-size: 20px; color: var(--
 .ledger { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 18px; }
 .ledger-row { display: flex; justify-content: space-between; gap: 8px; align-items: center; background: none; border: none; padding: 1px 4px; text-align: left; }
 .ledger-row b { font-weight: normal; font-variant-numeric: tabular-nums; }
-.ledger-row.buy { cursor: pointer; border: 1px solid transparent; }
-.ledger-row.buy:hover:not(:disabled) { border-color: var(--ink); }
-.ledger-row.buy:disabled { color: var(--grey-dark); cursor: default; }
+.ledger-row.has-icon { justify-content: flex-start; padding: 1px 0; }
+.ledger-label { flex: 1; min-width: 0; }
+.market-icon { flex: none; image-rendering: pixelated; }
+.ledger-row .buy { flex: 1; min-width: 0; display: flex; align-items: center; gap: 8px; background: none; border: 1px solid transparent; padding: 1px 4px; text-align: left; cursor: pointer; }
+.ledger-row .buy:hover:not(:disabled) { border-color: var(--ink); }
+.ledger-row .buy:disabled { color: var(--grey-dark); cursor: default; }
+.ledger-row .buy:disabled .market-icon { opacity: 0.45; filter: grayscale(1); }
+/* Neufassung (Lenis Vorschlag): the little "i" explains what an entry is good for */
+.info-btn { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 2px solid var(--ink); background: var(--paper); font: italic bold 16px/1 Georgia, serif; padding: 0; cursor: pointer; touch-action: manipulation; }
+.info-btn:hover, .info-btn.on { background: var(--ink); color: var(--paper); }
+.info-box { display: flex; gap: 10px; align-items: flex-start; margin-top: 8px; padding: 6px 8px; border: 2px solid var(--ink); background: #fffbe8; }
+.info-box p { margin: 0; font-size: 18px; line-height: 1.25; }
 .tax { display: inline-flex; align-items: center; gap: 4px; }
 
 .setup-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }

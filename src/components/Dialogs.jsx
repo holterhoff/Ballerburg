@@ -8,6 +8,7 @@ import { generateTerrain } from '../game/terrain.js';
 import { drawCastlePreview, drawTerrainPreview, SIDE_COLORS, TIME_CHOICES } from '../game/render.js';
 import { loadScores, clearScores } from '../game/scores.js';
 import { KRUSE_GREETING } from '../game/kingtalk.js';
+import { MarketIcon, marketInfo } from './MarketIcons.jsx';
 
 export function Notice({ text, button = 'Abbruch', onClose }) {
   return (
@@ -125,53 +126,85 @@ export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCanc
 export function MarketDialog({ game, onClose }) {
   const p = game.cur;
   const [, setTick] = useState(0);
+  const [info, setInfo] = useState(null); // which entry the little "i" explains
   const refresh = () => setTick((t) => t + 1);
-  const row = (label, value) => (
-    <div className="ledger-row"><span>{label}</span><b>{value}</b></div>
+  // `id` is "have:mine" or "buy:mine": the explanation opens below the section the "i" sits in
+  const infoBtn = (id, label) => (
+    <button
+      className={`info-btn${info === id ? ' on' : ''}`}
+      aria-label={`Was ist ${label}?`}
+      aria-expanded={info === id}
+      onClick={() => setInfo(info === id ? null : id)}
+    >i</button>
   );
+  const row = (key, label, value) => (
+    <div className="ledger-row has-icon">
+      <MarketIcon name={key} /><span className="ledger-label">{label}</span><b>{value}</b>{infoBtn(`have:${key}`, label)}
+    </div>
+  );
+  const labels = {
+    money: 'Geld', mine: 'Fördertürme', cannon: 'Geschütze', vane: 'Windfahne', powder: 'Pulver', balls: 'Kugeln', pop: 'Volk', tax: 'Steuern',
+    ...Object.fromEntries(MARKET.map((m) => [m.key, m.label])),
+  };
+  const infoBox = (section) => {
+    const [sec, key] = (info || '').split(':');
+    return sec === section && (
+      <div className="info-box" role="note">
+        <MarketIcon name={key} size={36} />
+        <p><b>{labels[key]}:</b> {marketInfo(key, p)}</p>
+      </div>
+    );
+  };
+  const offers = MARKET.filter((m) => (m.key !== 'guard' || game.options.extensions.robber) && (m.key !== 'spy' || game.options.extensions.spy) && (m.key !== 'repair' || game.options.extensions.repair));
   return (
     <Dialog title="" onClose={onClose} className="market">
       <section className="gem-box">
         <h3>Du hast:</h3>
         <div className="ledger">
-          {row('Geld', p.money)}
-          {row('Fördertürme', game.objectsOf(p.idx, 'mine').length)}
-          {row('Geschütze', game.objectsOf(p.idx, 'cannon').length)}
-          {row('Windfahne', game.hasVane(p.idx) ? 1 : 0)}
-          {row('Pulver', p.powder)}
-          {row('Kugeln', p.balls)}
-          {row('Volk', p.pop)}
-          <div className="ledger-row">
-            <span>Steuern in %</span>
+          {row('money', 'Geld', p.money)}
+          {row('mine', 'Fördertürme', game.objectsOf(p.idx, 'mine').length)}
+          {row('cannon', 'Geschütze', game.objectsOf(p.idx, 'cannon').length)}
+          {row('vane', 'Windfahne', game.hasVane(p.idx) ? 1 : 0)}
+          {row('powder', 'Pulver', p.powder)}
+          {row('balls', 'Kugeln', p.balls)}
+          {row('pop', 'Volk', p.pop)}
+          <div className="ledger-row has-icon">
+            <MarketIcon name="tax" />
+            <span className="ledger-label">Steuern in %</span>
             <span className="tax">
               <button className="gem-arrow" onClick={() => { game.setTax(p.tax - 2); refresh(); }} aria-label="Steuern senken">◂</button>
               <b>{p.tax}</b>
               <button className="gem-arrow" onClick={() => { game.setTax(p.tax + 2); refresh(); }} aria-label="Steuern erhöhen">▸</button>
             </span>
+            {infoBtn('have:tax', 'Steuern')}
           </div>
         </div>
+        {infoBox('have')}
       </section>
       <section className="gem-box">
         <h3>Markt:</h3>
         <div className="ledger">
-          {MARKET.filter((m) => (m.key !== 'guard' || game.options.extensions.robber) && (m.key !== 'spy' || game.options.extensions.spy) && (m.key !== 'repair' || game.options.extensions.repair)).map((m) => (
-            <button
-              key={m.key}
-              className="ledger-row buy"
-              disabled={!game.canBuy(m.key)}
-              onClick={() => {
-                if (game.buy(m.key)) {
-                  if (m.key === 'stones') onClose();
-                  else refresh();
-                }
-              }}
-            >
-              <span>{m.label}</span><b>{game.priceOf(m.key) === 0 ? 'frei' : game.priceOf(m.key)}</b>
-            </button>
+          {offers.map((m) => (
+            <div key={m.key} className="ledger-row has-icon offer">
+              <button
+                className="buy"
+                disabled={!game.canBuy(m.key)}
+                onClick={() => {
+                  if (game.buy(m.key)) {
+                    if (m.key === 'stones') onClose();
+                    else refresh();
+                  }
+                }}
+              >
+                <MarketIcon name={m.key} /><span className="ledger-label">{m.label}</span><b>{game.priceOf(m.key) === 0 ? 'frei' : game.priceOf(m.key)}</b>
+              </button>
+              {infoBtn(`buy:${m.key}`, m.label)}
+            </div>
           ))}
         </div>
+        {infoBox('buy')}
       </section>
-      <p className="gem-small">Grau = zu teuer, kein Platz, Lager voll oder schon vorhanden. Deine Kammern fassen {p.caps.money} Gold, {p.caps.powder} Pulver und {p.caps.balls} Kugeln.</p>
+      <p className="gem-small">Grau = zu teuer, kein Platz, Lager voll oder schon vorhanden. Das kleine i erklärt, wofür etwas gut ist.</p>
       <div className="gem-actions"><Btn def data-autofocus onClick={onClose}>Fertig</Btn></div>
     </Dialog>
   );
