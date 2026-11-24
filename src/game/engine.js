@@ -1275,11 +1275,24 @@ export class Game {
     return this.freeCannonSlots(p)[0] || null;
   }
 
-  /** All free cannon places of the castle; a human player picks one of them on the field. */
+  /**
+   * All free cannon places of the castle; a human player picks one of them on the field.
+   * Neufassung: a place counts only while there is still wall (or ground) under it. Where the wall was
+   * shot away, the castle first has to be rebuilt (Anbauen) before a cannon can stand there again.
+   */
   freeCannonSlots(p = this.cur) {
     const taken = this.objectsOf(p.idx, 'cannon');
     const [w, h] = SIZES.cannon;
-    return p.cannonSlots.filter((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h));
+    return p.cannonSlots.filter((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h) && this.slotSupported(s));
+  }
+
+  /** Is there something solid right under the middle of this cannon place (within 2 pixels)? */
+  slotSupported(s) {
+    const [w, h] = SIZES.cannon;
+    let solid = 0;
+    for (let i = s.x + 2; i < s.x + w - 2; i++)
+      for (let j = s.y + h; j < s.y + h + 2; j++) if (this.isSolid(i, j)) { solid++; break; }
+    return solid >= Math.ceil((w - 4) / 2);
   }
 
   /**
@@ -1312,15 +1325,13 @@ export class Game {
   }
 
   /**
-   * Original: init_ka() simply draws the cannon over whatever is there. This version clears the place,
-   * and if the wall below was shot away, it mortars a small pillar so the cannon stands on something.
+   * Original: init_ka() simply draws the cannon over whatever is there. This version clears the place.
+   * Places without wall underneath are not offered at all (freeCannonSlots), so nothing has to be propped up.
    */
-  prepareCannonSlot(s, side) {
+  prepareCannonSlot(s) {
     const [w, h] = SIZES.cannon;
     for (let j = s.y; j < s.y + h; j++)
       for (let i = s.x; i < s.x + w; i++) if (i >= 0 && i < W && j >= 0 && j < H) this.solid[j * W + i] = 0;
-    for (let i = s.x + 2; i < s.x + w - 2; i++)
-      for (let j = s.y + h; j < H && j < s.y + h + 60 && !this.isSolid(i, j); j++) this.solid[j * W + i] = BRICK + side;
     this.terrainDirty = true;
   }
 
@@ -1421,7 +1432,7 @@ export class Game {
         // a chosen place must still be free; otherwise the first free place, like the original
         const free = this.freeCannonSlots(p);
         const s = (opt.slot && free.find((f) => f.x === opt.slot.x && f.y === opt.slot.y)) || free[0];
-        this.prepareCannonSlot(s, p.idx);
+        this.prepareCannonSlot(s);
         const c = this.addObject('cannon', p.idx, s.x, s.y);
         if (p.type === 'human') this.selected = c.id;
         break;
@@ -1667,7 +1678,9 @@ export class Game {
         const how = mines < 2 && this.canBuy('mine', p) ? 'Baut einen Förderturm' : p.tax < 30 ? 'Erhöht die Steuern etwas' : 'Spart Euer Geld';
         return { text: `Kein Geschütz und zu wenig Geld (${p.money} von ${pr.cannon} Talern). ${how} und setzt diese Runde aus (Fertig).`, level: 'warn' };
       }
-      return { text: 'Alle Geschützplätze Eurer Burg sind besetzt.', level: 'warn' };
+      return { text: p.cannonSlots.length > this.objectsOf(p.idx, 'cannon').length
+        ? 'Wo ein Geschütz stehen könnte, ist die Mauer weggeschossen. Baut sie zuerst wieder auf (Anbauen im Markt).'
+        : 'Alle Geschützplätze Eurer Burg sind besetzt.', level: 'warn' };
     }
     if (!p.balls) return this.canBuy('balls', p)
       ? { text: `Ohne Kugeln könnt Ihr nicht schießen. Kauft Kugeln im Markt (${pr.balls} Taler).`, level: 'warn' }
