@@ -1,4 +1,4 @@
-import { W, H, RES, EARTH, BRICK } from './constants.js';
+import { W, H, RES, EARTH, BRICK, SIZES } from './constants.js';
 import { STORE_CELL } from './castles.js';
 
 export const SIDE_COLORS = [
@@ -481,17 +481,8 @@ function drawVane(c, x, y, pal, wind, t) {
 }
 
 function drawMine(c, x, y, t, damage = 0, sabotaged = false) {
-  drawMineBody(c, x, y, sabotaged ? 0 : t, damage);
-  if (!sabotaged) return;
-  // Extension "spy": a blown-up tower stands black and still for good, smoke rises
-  c.fillStyle = 'rgba(20, 14, 10, 0.4)';
-  c.fillRect(x + 1, y + 8, 14, 16);
-  for (let i = 0; i < 3; i++) {
-    const p = (t * 0.5 + i / 3) % 1;
-    c.fillStyle = `rgba(70, 64, 66, ${0.65 * (1 - p)})`;
-    c.fillRect((x + 6 + Math.sin(t * 2 + i * 2) * 2 + p * 3) | 0, (y - 1 - p * 12) | 0, 2 + Math.round(p * 2), 2 + Math.round(p * 2));
-  }
-  if (Math.floor(t * 5) % 3 === 0) { c.fillStyle = '#ff8a2a'; c.fillRect(x + 5, y + 18, 1, 1); c.fillRect(x + 10, y + 13, 1, 1); }
+  // Extension "spy": a blown-up tower looks exactly like one hit by a ball (broken wheel hanging down)
+  drawMineBody(c, x, y, t, sabotaged ? Math.max(1, damage) : damage);
 }
 
 function drawMineBody(c, x, y, t, damage = 0) {
@@ -883,6 +874,21 @@ export function drawScene(c, game, r, view) {
     c.beginPath();
     c.arc(f.x, f.y, f.r * (0.6 + k * 0.6), 0, Math.PI * 2);
     c.fill();
+  }
+
+  // Neufassung: choosing the place for a new cannon — free places blink, the one under the pointer is lit
+  if (game.placing && game.phase === 'aim') {
+    const [w, h] = SIZES.cannon;
+    const hot = view.hover && game.cannonSlotAt(view.hover.x, view.hover.y, 6);
+    const on = Math.floor(t * 3) % 2 === 0;
+    for (const s of game.freeCannonSlots()) {
+      const lit = hot && hot.x === s.x && hot.y === s.y;
+      c.fillStyle = lit ? 'rgba(160, 230, 140, 0.7)' : `rgba(255, 230, 120, ${on ? 0.45 : 0.25})`;
+      c.fillRect(s.x - 1, s.y - 1, w + 2, h + 2);
+      c.strokeStyle = lit ? '#e8ffe0' : '#ffe680';
+      c.lineWidth = 1;
+      c.strokeRect(s.x - 1.5, s.y - 1.5, w + 3, h + 3);
+    }
   }
 
   if (game.building && game.phase === 'aim') {

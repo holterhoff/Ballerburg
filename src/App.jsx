@@ -163,6 +163,8 @@ export default function App() {
   const openCannon = (id) => {
     const problem = g.shotProblem();
     if (problem) { setDialog({ type: 'notice', text: problem }); return; }
+    // super shot bought: only the cannon it was aimed with can be used this move
+    if (g.superShot) id = g.superShot.cannon;
     g.selected = id;
     setDialog({ type: 'aim', id });
   };
@@ -175,9 +177,27 @@ export default function App() {
    */
   const onPick = ({ x, y }, secondary, tol = 4) => {
     if (!g || dialog) return;
+    if (g.placing) {
+      if (secondary) { g.stopPlacing(); return; }
+      const slot = g.cannonSlotAt(x, y, Math.max(6, tol));
+      if (slot) g.placeCannon(slot);
+      return;
+    }
     if (g.building) {
       if (secondary) g.stopBuilding();
       else g.layBrick(x, y);
+      return;
+    }
+    // Neufassung: tap the robber to see how much gold he is carrying
+    if (!secondary && g.robber && g.robberPicked(x, y, Math.max(4, tol))) {
+      const info = g.robberInfo();
+      setDialog({
+        type: 'notice',
+        button: 'Schließen',
+        text: info.loot > 0
+          ? `Der Räuber trägt einen Sack mit ${info.loot} Talern.${info.goal ? ` Er ist unterwegs zu ${info.goal}.` : ''} Wer ihn mit einer Kugel trifft, bekommt den ganzen Sack.`
+          : `Der Sack des Räubers ist noch leer.${info.goal ? ` Er ist unterwegs zu ${info.goal}.` : ''} Wer ihn trifft, verjagt ihn.`,
+      });
       return;
     }
     if (!humanTurn || secondary) return;
@@ -194,6 +214,7 @@ export default function App() {
   useEffect(() => {
     const key = (e) => {
       if (e.key === 'Escape' && g?.building && !dialog) g.stopBuilding();
+      if (e.key === 'Escape' && g?.placing && !dialog) g.stopPlacing();
     };
     window.addEventListener('keydown', key);
     return () => window.removeEventListener('keydown', key);
@@ -270,6 +291,12 @@ export default function App() {
           <div className="screen">
             <Stage game={g} onPick={onPick} kingTip={dialog ? null : kingTip} />
             <div className="roundbox">{inMatch ? `Raum ${room.code} · ` : ''}Runde {g.round}{g.options.extensions.storm && g.weather !== 'klar' ? (g.weather === 'gewitter' ? ' · Gewitter' : ' · Wolken ziehen auf') : ''}</div>
+            {g.placing && (
+              <div className="buildbox" role="status">
+                <span>Neues Geschütz: Tippe auf einen der leuchtenden Plätze ({g.priceOf('cannon')} Taler)</span>
+                <button className="gem-btn" onClick={() => g.stopPlacing()}>Abbrechen</button>
+              </div>
+            )}
             {g.building && (
               <div className="buildbox" role="status">
                 <span>Anbauen: an Mauer oder Boden entlangmalen · noch {g.building.left} Steine</span>
@@ -317,19 +344,22 @@ export default function App() {
         {g && <p className="turn-hint">Tipp: Quer gehalten wird das Spielfeld größer.</p>}
       </main>
 
-      {dialog?.type === 'notice' && <Notice text={dialog.text} onClose={close} />}
+      {dialog?.type === 'notice' && <Notice text={dialog.text} button={dialog.button} onClose={close} />}
       {dialog?.type === 'aim' && g && (
         <AimDialog
           key={dialog.id}
           cannon={g.obj(dialog.id)}
-          cannons={cannons.map((c) => c.id)}
+          cannons={g.superShot ? [g.superShot.cannon] : cannons.map((c) => c.id)}
+          superShot={g.superShot}
           onSwitch={(id) => { g.selected = id; setDialog({ type: 'aim', id }); }}
           game={g}
           onCancel={close}
           onFire={(a, pw) => { close(); if (!(inMatch ? online.fire(dialog.id, a, pw) : g.fire(dialog.id, a, pw))) sound.error(); }}
         />
       )}
-      {dialog?.type === 'market' && g && <MarketDialog game={g} onClose={() => { close(); force(); }} />}
+      {dialog?.type === 'market' && g && <MarketDialog game={g} onClose={() => { close(); force(); }}
+        onPlaceCannon={() => { if (g.startPlacing()) close(); }}
+        onAimSuper={(id) => { force(); setDialog({ type: 'aim', id }); }} />}
       {dialog?.type === 'king' && <KingDialog result={dialog.result} onClose={close} />}
       {dialog?.type === 'setup' && (
         <SetupDialog

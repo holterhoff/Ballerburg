@@ -28,7 +28,7 @@ const HEAT_TEXT = [
 ];
 
 /** Original: sch_obj() in cannoneer.c — angle 0..180 in steps of 1 and 10, powder 5..20 in steps of 1 and 3. */
-export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCancel }) {
+export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCancel, superShot = null }) {
   const p = game.cur;
   const maxPowder = Math.max(POWDER_MIN, Math.min(POWDER_MAX, p.powder));
   const [angle, setAngle] = useState(cannon.aim.angle);
@@ -106,6 +106,13 @@ export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCanc
           <Spinner label="Winkel" value={angle} onChange={setAngle} min={0} max={ANGLE_MAX} coarse={10} unit="°" />
           <Spinner label="Pulver" value={powder} onChange={setPowder} min={POWDER_MIN} max={maxPowder} coarse={3} />
           <p className="gem-small">Über 90° schießt das Geschütz nach hinten. Vorrat: {p.powder} Pulver, {p.balls} Kugeln.</p>
+          {superShot && superShot.cannon === cannon.id && (
+            <p className="aim-super" role="note">
+              <b>Königsschuss</b> auf {superShot.target === 'spy' ? 'den Spion' : 'den Räuber'}: {angle === superShot.angle && powder === superShot.powder
+                ? 'Winkel und Pulver sind genau eingestellt. Feuer!'
+                : `Verstellt! Sicher trifft nur ${superShot.angle}° mit ${superShot.powder} Pulver.`}
+            </p>
+          )}
           {heat > 0 && <p className={`aim-heat h${heat}`} role={heat >= HEAT_MAX ? 'alert' : undefined}>{HEAT_TEXT[heat]}</p>}
         </div>
         {no3d ? (
@@ -123,7 +130,7 @@ export function AimDialog({ cannon, cannons = [], onSwitch, game, onFire, onCanc
 }
 
 /** Original: markt() in market.c — your stores, taxes in steps of 2, and the market. */
-export function MarketDialog({ game, onClose }) {
+export function MarketDialog({ game, onClose, onPlaceCannon, onAimSuper }) {
   const p = game.cur;
   const [, setTick] = useState(0);
   const [info, setInfo] = useState(null); // which entry the little "i" explains
@@ -155,7 +162,7 @@ export function MarketDialog({ game, onClose }) {
       </div>
     );
   };
-  const offers = MARKET.filter((m) => (m.key !== 'guard' || game.options.extensions.robber) && (m.key !== 'spy' || game.options.extensions.spy) && (m.key !== 'repair' || game.options.extensions.repair));
+  const offers = MARKET.filter((m) => (m.key !== 'guard' || game.options.extensions.robber) && (m.key !== 'spy' || game.options.extensions.spy) && (m.key !== 'supershot' || game.options.extensions.spy || game.options.extensions.robber) && (m.key !== 'repair' || game.options.extensions.repair));
   return (
     <Dialog title="" onClose={onClose} className="market">
       <section className="gem-box">
@@ -190,8 +197,11 @@ export function MarketDialog({ game, onClose }) {
                 className="buy"
                 disabled={!game.canBuy(m.key)}
                 onClick={() => {
+                  // a human with more than one free cannon place chooses the place on the field first
+                  if (m.key === 'cannon' && onPlaceCannon && p.type === 'human' && game.freeCannonSlots().length > 1) { onPlaceCannon(); return; }
                   if (game.buy(m.key)) {
-                    if (m.key === 'stones') onClose();
+                    if (m.key === 'supershot' && onAimSuper) onAimSuper(game.selected);
+                    else if (m.key === 'stones') onClose();
                     else refresh();
                   }
                 }}
@@ -430,6 +440,8 @@ const RULES = [
     'Geschütze laufen heiß: Nach dem ersten Schuss in Folge glüht das Rohr gelb, nach dem zweiten orange, nach dem dritten rot. Der vierte Schuss in Folge sprengt das Geschütz, Pulver und Kugel sind verloren. Ein Geschütz kühlt ganz ab, sobald du in einem Zug nicht mit ihm schießt.',
     'Der Räuber: Ab der zweiten Runde zieht ein vermummter Räuber zwischen den Burgen hin und her. Nach jedem Zug geht er ein Stück weiter, meistens zu der Burg, die gerade besser dasteht. Dort stiehlt er 15 bis 30 Prozent des Goldes, höchstens 250 Taler, und steckt es in seinen Sack. Wer deutlich zurückliegt, verliert höchstens ein paar Taler, und meist lässt er diese Burg ganz in Ruhe. Nach jedem Diebstahl zieht er weiter zur anderen Burg. Wer ihn mit einer Kugel trifft oder nah neben ihm einschlägt, bekommt den ganzen Geldsack. Sicherer ist eine Burgwache aus dem Markt: Sie steht vor dem Tor, fängt den Räuber, sobald er ankommt, und die Burg bekommt seinen ganzen Sack. Danach führt die Wache ihn ab und ist weg. Eine Wache kann abgeschossen werden. Nach einer Runde Pause kommt immer wieder ein neuer Räuber.',
     'Der Spion: Im Markt lässt sich ein Spion anheuern (um 300 Taler, einer pro Burg). Er läuft von der eigenen Mauer über den Berg zur feindlichen Burg, nach jedem Zug nur ein Stück weit wie der Räuber, und sucht sich dort einen arbeitenden Förderturm. Angekommen legt er eine Sprengladung, nach dem nächsten Zug fliegt sie hoch: Der Turm ist beschädigt wie von einer Kugel und bringt kein Gold mehr. Von selbst wird er nicht wieder ganz, nur eine Reparatur im Markt hilft. War er schon beschädigt, stürzt er ein. Danach nimmt er sich einen zweiten Turm vor und schleicht anschließend nach Hause. Hat der Gegner keinen Förderturm, sprengt er stattdessen die Hälfte der Pulverkammer. Eine Burgwache hält ihn nicht auf. Wer einen feindlichen Spion mit einer Kugel trifft, bekommt 100 Taler Kopfgeld.',
+    'Königsschuss: Ist der Räuber oder ein feindlicher Spion unterwegs, lässt sich im Markt ein Königsschuss kaufen. Dann richtet der König höchstpersönlich eines deiner Geschütze so aus, dass der nächste Schuss sicher trifft. Sind beide da, entscheidet der Zufall, auf wen. Der Zieldialog öffnet sich gleich mit Winkel und Pulver, und in diesem Zug lässt sich nur dieses eine Geschütz benutzen. Wer etwas verstellt oder erst im nächsten Zug schießt, trifft nicht mehr sicher. Den Räuber zu treffen bringt seinen ganzen Geldsack, den Spion 100 Taler Kopfgeld. Aber Vorsicht: Für den Königsschuss verlässt der König seine sichere Kammer und steht eine Runde lang draußen am Geschütz. Trifft ihn der Gegner dort, ist das Spiel verloren.',
+    'Spion kommt heim: Schafft es dein Spion nach getaner Arbeit zurück zur eigenen Burg, bringt er 60 bis 100 Taler aus dem feindlichen Lager mit, soweit die Schatzkammer sie fasst.',
     'Förderturm reparieren: Im Markt lässt sich ein beschädigter Förderturm reparieren, für den halben Preis eines neuen Turms. Ein vom Spion gesprengter Turm kommt zuerst dran, danach einer, den eine Kugel getroffen hat. Der reparierte Turm ist wieder ganz und fördert wieder Gold.',
     'Das Gewitter: Ab der vierten Runde kann ein Gewitter aufziehen. Zuerst kündigen dunkle Wolken es einen Zug vorher an, dann regnet es zwei bis drei Runden lang. Der Wind wird stärker und dreht schneller. Nach manchen Zügen schlägt ein Blitz ein, und zwar nur in die Windfahne der Burg, die gerade besser dasteht (gemessen wie beim Räuber). Die Fahne ist zerstört, und ihr Besitzer sieht den Wind nicht mehr, bis er im Markt eine neue kauft. Die schwächere Burg verliert ihre Windfahne nie durch einen Blitz. Ein Gewitter zerstört höchstens eine Windfahne. Hat die stärkere Burg keine, schlagen die Blitze in den Berg ein.',
   ]],

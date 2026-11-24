@@ -44,6 +44,10 @@ const PIXELS = {
     '....KKK.....', '...KCCCK....', '..KCCCCCK...', '..KCKKKCK...', '..KCKSKCK...', '..KCCCCCK...',
     '.KCCCCCCCK..', '.KCCCCCCCKRK', '.KCCCCCCCKRK', '..KCCCCCK.K.', '..KCK.KCK...', '..KK...KK...',
   ],
+  supershot: [
+    '............', '.K...KK...K.', 'KYK.KYYK.KYK', 'KYYKYYYYKYYK', 'KYYYYRRYYYYK', 'KYYYRRRRYYYK',
+    'KYYYYRRYYYYK', '.KYYYYYYYYK.', '.KyyyyyyyyK.', '.KKKKKKKKKK.', '..K..KK..K..', '...KK..KK...',
+  ],
   repair: [
     '............', '...KKKKK....', '..KGGGGGK...', '..KGgggGKK..', '...KKKKKNNK.', '.......KNNK.',
     '......KNNK..', '.....KNNK...', '....KNNK....', '...KNNK.....', '...KNK......', '....K.......',
@@ -86,6 +90,7 @@ export function marketInfo(key, p) {
     balls: `Jeder Schuss braucht eine Kugel. Du bekommst 2 Kugeln. Dein Kugellager fasst ${p.caps.balls}.`,
     guard: 'Die Burgwache steht vor deinem Tor. Will der Räuber dein Gold stehlen, fängt sie ihn, und du bekommst seinen ganzen Geldsack. Danach geht die Wache nach Hause.',
     spy: 'Der Spion schleicht über den Berg zur anderen Burg und sprengt dort einen Förderturm. Er braucht ein paar Runden. Der Gegner kann ihn unterwegs abschießen.',
+    supershot: 'Nur wenn der Räuber oder ein feindlicher Spion unterwegs ist: Der König richtet selbst ein Geschütz genau auf ihn, der nächste Schuss trifft sicher. Sind beide da, entscheidet der Zufall. Den Räuber zu treffen bringt dir seinen Geldsack, den Spion 100 Taler Kopfgeld. Achtung: Dafür steht der König eine Runde lang ungeschützt am Geschütz. Trifft ihn der Gegner dort, hast du verloren!',
     repair: 'Repariert einen beschädigten oder gesprengten Förderturm, dann fördert er wieder Gold. Kostet die Hälfte von einem neuen Turm.',
   };
   return texts[key] || '';

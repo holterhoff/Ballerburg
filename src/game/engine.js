@@ -55,6 +55,7 @@ export const SPY = {
   fuse: 1, // moves between laying the charge and the blast
   powderShare: 50, // per cent of the powder store burnt when there is no tower
   bounty: 100, // taler for whoever shoots an enemy spy
+  homeMin: 60, homeMax: 100, // taler a spy brings home when he gets back alive (loot from the enemy camp)
   flyPad: 3, blastPad: 8,
   aiChance: 20, // per cent: the computer shoots at a spy coming for it (twice as often while he lays the charge)
   aiBuy: 40, // per cent per move: the computer hires a spy against a castle with towers
@@ -96,12 +97,17 @@ export const MARKET = [
   { key: 'spy', label: 'Spion' },
   /** Extension "repair": a damaged or sabotaged shaft tower is mended for half the tower price. */
   { key: 'repair', label: 'Förderturm reparieren' },
+  /**
+   * Extensions "spy"/"robber", Königsschuss: the king himself aims one cannon, so the next shot surely
+   * hits the enemy spy or the robber. For that he leaves his safe room and stands at the cannon for one round.
+   */
+  { key: 'supershot', label: 'Königsschuss' },
 ];
 // repair: the entries only keep the arrays in step; its price is always half the tower price (priceOf)
-const START_PRICES = [200, 500, 400, 150, 50, 50, 150, 300, 250];
-const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110, 260, 173];
-const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200, 380, 353];
-const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20, 30, 25];
+const START_PRICES = [200, 500, 400, 150, 50, 50, 150, 300, 250, 180];
+const PRICE_MIN = [98, 347, 302, 102, 30, 29, 110, 260, 173, 150];
+const PRICE_MAX = [302, 707, 498, 200, 89, 91, 200, 380, 353, 230];
+const PRICE_SWING = [10, 50, 50, 20, 10, 10, 20, 30, 25, 15];
 const PRICE_INDEX = Object.fromEntries(MARKET.map((m, i) => [m.key, i]));
 
 /** Original: up to five shaft towers in front of the castle, as long as they stay left of x = 265. */
@@ -259,6 +265,8 @@ export class Game {
     this.robberWait = ROBBER.firstMoves;
     /** Extension "spy": at most one spy per side. */
     this.spies = [];
+    /** Königsschuss: the king stands at a cannon until this move number. */
+    this.kingOut = null;
     /** Extension "storm": 'klar', 'wolken' (one move of warning) or 'gewitter'. */
     this.weather = 'klar';
     this.stormLeft = 0;
@@ -347,6 +355,8 @@ export class Game {
   startMove() {
     // original: n = zug&1 — the left castle always opens the game
     this.current = this.move & 1;
+    // Königsschuss: one round later the king goes back into his room
+    if (this.kingOut && this.move >= this.kingOut.back) this.kingHome();
     const p = this.cur;
     // original: kn[n] &= ~16; wnd = wnd*9/10 + rand()%12 - 6
     p.visitedThisTurn = false;
@@ -362,6 +372,8 @@ export class Game {
     this.hasFired = false;
     this.firedCannon = null;
     this.building = null;
+    this.placing = null;
+    this.superShot = null;
     if (this.cur.type === 'remote') {
       // Online: the other castle is moved by its own device; this one only waits for its moves
       this.phase = 'remote';
@@ -803,6 +815,26 @@ export class Game {
     return x >= r.x - ROBBER.width / 2 - pad && x <= r.x + ROBBER.width / 2 + pad && y >= gy - ROBBER.height - pad && y <= gy + pad;
   }
 
+  /**
+   * Neufassung: did a click or tap hit the robber where he is drawn right now (he may still be walking)?
+   * `tol` is how far a finger may miss, in world pixels.
+   */
+  robberPicked(x, y, tol = 4) {
+    const r = this.robber;
+    if (!r) return false;
+    const rx = r.shownX ?? r.x;
+    const gy = this.groundAt(rx);
+    return x >= rx - ROBBER.width / 2 - tol && x <= rx + ROBBER.width / 2 + tol && y >= gy - ROBBER.height - tol && y <= gy + tol;
+  }
+
+  /** What the robber's sack holds and where he is heading, for the info box when you tap him. */
+  robberInfo() {
+    const r = this.robber;
+    if (!r) return null;
+    const goal = r.target != null ? this.players[r.target]?.name : null;
+    return { loot: r.loot || 0, goal };
+  }
+
   /** After each move: the robber appears, walks on, or robs the castle he has reached. */
   robberMove() {
     const r = this.robber;
@@ -1060,7 +1092,13 @@ export class Game {
       if (s.x !== goal) continue;
       if (s.state === 'flee') {
         this.spies = this.spies.filter((o) => o !== s);
-        this.say(`Der Spion von ${owner.name} ist heil zurück und taucht unter.`);
+        // Neufassung: a spy who makes it home brings a reward, as far as the treasury holds it
+        const reward = Math.max(0, Math.min(SPY.homeMin + rnd(SPY.homeMax - SPY.homeMin + 1), owner.caps.money - owner.money));
+        owner.money += reward;
+        owner.spyLoot = (owner.spyLoot || 0) + reward;
+        this.say(reward > 0
+          ? `Der Spion von ${owner.name} ist heil zurück und bringt ${reward} Taler aus dem feindlichen Lager mit.`
+          : `Der Spion von ${owner.name} ist heil zurück. Die Schatzkammer ist voll, seine Beute passt nicht mehr hinein.`, 'big');
         continue;
       }
       s.state = 'plant';
@@ -1106,6 +1144,80 @@ export class Game {
       : `Die Lunte des Spions von ${owner.name} verpufft, bei ${foe.name} war kein Pulver mehr.`, 'hit');
   }
 
+  /**
+   * Königsschuss: the king leaves his room and stands right behind the cannon he aims, out in the open,
+   * until his side's next move begins. Hitting him there ends the game, just like in his room.
+   */
+  kingToCannon(p, c) {
+    const k = this.objectsOf(p.idx, 'king')[0];
+    if (!k) return;
+    const [kw, kh] = [k.w, k.h];
+    this.kingOut = { owner: p.idx, id: k.id, home: { x: k.x, y: k.y, hit: k.hit || null }, back: this.move + 2 };
+    k.hit = null; // out of the throne room: the whole king can be hit
+    k.x = clamp(this.dir(p.idx) > 0 ? c.x - kw - 1 : c.x + c.w + 1, 0, W - kw);
+    k.y = c.y + c.h - kh;
+    this.terrainDirty = true;
+  }
+
+  /** Königsschuss over: the king goes back into his room (if nobody got him in the meantime). */
+  kingHome() {
+    const out = this.kingOut;
+    this.kingOut = null;
+    const k = out && this.obj(out.id);
+    if (!k || !k.alive) return;
+    k.x = out.home.x; k.y = out.home.y; k.hit = out.home.hit; k.fall = null;
+    this.say(`Der König von ${this.players[out.owner].name} ist zurück in seiner sicheren Kammer.`);
+  }
+
+  /** Neufassung, super shot: who can be aimed at — the enemy spy on his way, and the robber. */
+  superTargets(p = this.cur) {
+    const list = [];
+    if (this.options.extensions.spy && this.spies.some((s) => s.owner !== p.idx && s.state !== 'flee')) list.push('spy');
+    if (this.options.extensions.robber && this.robber) list.push('robber');
+    return list;
+  }
+
+  /**
+   * Neufassung, super shot: a shot from one of your cannons (angle, powder) that surely hits the target
+   * ('spy' or 'robber'). The ball flies exactly as in stepProjectile(), with this move's wind, so the hit
+   * is certain as long as the player fires these settings in this move. Shots that would hit the own
+   * castle or anything else first are thrown out. Null if no cannon can reach the target.
+   */
+  superShotAt(target, p = this.cur) {
+    if (this.shotProblem(p)) return null;
+    const spy = target === 'spy' ? this.spies.find((s) => s.owner !== p.idx && s.state !== 'flee') : null;
+    if (target === 'spy' ? !spy : !this.robber) return null;
+    const tx = spy ? spy.x : this.robber.x;
+    const cannons = this.objectsOf(p.idx, 'cannon').filter((c) => !this.options.extensions.overheat || (c.heat || 0) < HEAT_MAX);
+    const maxPowder = Math.min(POWDER_MAX, p.powder);
+    const fly = (c, angle, powder, solid) => {
+      const v = 0.4 + 0.25 * powder, a = angle / 57.296;
+      const m = this.muzzle(c);
+      let x = m.x, y = m.y, vx = v * Math.cos(a) * this.dir(c.owner), vy = v * Math.sin(a);
+      for (let st = 0; st < 3000; st++) {
+        x += vx; y -= vy; vy -= G; vx += (this.wind / 2 - vx) / 5000;
+        if (!(x > 3 && x < 637 && y < 396)) return false;
+        const sp = this.spyAt(x, y, SPY.flyPad);
+        if (sp) return sp === spy; // the spy is checked first, as in stepProjectile()
+        if (this.robberAt(x, y, ROBBER.flyPad)) return target === 'robber';
+        if (!solid) continue;
+        if (x >= 3 && x <= 637 && y <= 397) {
+          const bx = x | 0, by = y | 0, hit = (i, j) => this.loc(i, j, c.id, true);
+          if (hit(bx, by)) return false;
+          for (let i = -1; i <= 1; i++) if (hit(bx - 2, by + i) || hit(bx + 2, by + i) || hit(bx + i, by + 2)) return false;
+        }
+      }
+      return false;
+    };
+    // nearest cannon first; quick flight without walls, then the real check with walls
+    const order = [...cannons].sort((a, b) => Math.abs(a.x - tx) - Math.abs(b.x - tx));
+    for (const c of order)
+      for (let powder = POWDER_MIN; powder <= maxPowder; powder++)
+        for (let angle = 5; angle <= 85; angle++)
+          if (fly(c, angle, powder, false) && fly(c, angle, powder, true)) return { cannon: c.id, angle, powder, target };
+    return null;
+  }
+
   /** A ball got a spy. Whoever shoots an enemy spy gets a bounty. */
   catchSpy(s, by) {
     this.spies = this.spies.filter((o) => o !== s);
@@ -1141,7 +1253,7 @@ export class Game {
   /** Extension: castle parts without support fall down. */
   checkSupport() {
     for (const o of this.objects)
-      if (o.alive && !o.fall && !this.supported(o)) o.fall = { vy: 0, acc: 0, startY: o.y };
+      if (o.alive && !o.fall && o.type !== 'king' && !this.supported(o)) o.fall = { vy: 0, acc: 0, startY: o.y };
   }
 
   /* ======================= Markt (original: markt(), anbau(), fturm(), init_ka()) ======================= */
@@ -1160,9 +1272,43 @@ export class Game {
    */
   freeCannonSlot(p = this.cur) {
     // Original: a bought cannon goes to a free cannon place of the castle (ka[n][k].x == -1), nowhere else
+    return this.freeCannonSlots(p)[0] || null;
+  }
+
+  /** All free cannon places of the castle; a human player picks one of them on the field. */
+  freeCannonSlots(p = this.cur) {
     const taken = this.objectsOf(p.idx, 'cannon');
     const [w, h] = SIZES.cannon;
-    return p.cannonSlots.find((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h)) || null;
+    return p.cannonSlots.filter((s) => !taken.some((c) => Math.abs(c.x - s.x) < w && Math.abs(c.y - s.y) < h));
+  }
+
+  /**
+   * Neufassung: buying a cannon with several free places lets the player point at the place first.
+   * Nothing is paid yet; a click on a place buys it there (placeCannon), Esc or "Abbrechen" stops.
+   */
+  startPlacing() {
+    if ((this.phase !== 'aim') || !this.canBuy('cannon')) { sound.error(); return false; }
+    this.building = null;
+    this.placing = { type: 'cannon' };
+    this.emit();
+    return true;
+  }
+
+  /** The free place nearest to (x, y), within `tol` pixels of its outline. */
+  cannonSlotAt(x, y, tol = 4) {
+    const [w, h] = SIZES.cannon;
+    const d = (s) => Math.hypot(Math.max(s.x - x, 0, x - (s.x + w)), Math.max(s.y - y, 0, y - (s.y + h)));
+    return this.freeCannonSlots().filter((s) => d(s) <= tol).sort((a, b) => d(a) - d(b))[0] || null;
+  }
+
+  placeCannon(slot) {
+    this.placing = null;
+    return this.buy('cannon', { slot });
+  }
+
+  stopPlacing() {
+    this.placing = null;
+    this.emit();
   }
 
   /**
@@ -1252,11 +1398,12 @@ export class Game {
       case 'guard': return this.options.extensions.robber && !this.objectsOf(p.idx, 'guard').length && !!this.guardSpot(p);
       case 'spy': return this.options.extensions.spy && !this.spies.some((s) => s.owner === p.idx);
       case 'repair': return !!this.options.extensions.repair && !!this.brokenMine(p);
+      case 'supershot': return !this.hasFired && !this.superShot && this.superTargets(p).some((t) => this.superShotAt(t, p));
       default: return false;
     }
   }
 
-  buy(key) {
+  buy(key, opt = {}) {
     const p = this.cur;
     if ((this.phase !== 'aim' && this.phase !== 'ai') || !this.canBuy(key, p)) { if (p.type === 'human') sound.error(); return false; }
     p.money -= this.priceOf(key);
@@ -1271,7 +1418,9 @@ export class Game {
         break;
       }
       case 'cannon': {
-        const s = this.freeCannonSlot(p);
+        // a chosen place must still be free; otherwise the first free place, like the original
+        const free = this.freeCannonSlots(p);
+        const s = (opt.slot && free.find((f) => f.x === opt.slot.x && f.y === opt.slot.y)) || free[0];
         this.prepareCannonSlot(s, p.idx);
         const c = this.addObject('cannon', p.idx, s.x, s.y);
         if (p.type === 'human') this.selected = c.id;
@@ -1299,6 +1448,23 @@ export class Game {
         s.targetId = t ? t.id : null;
         this.spies.push(s);
         this.say(`${p.name} schickt einen Spion über den Berg zu ${this.players[1 - p.idx].name}.`, 'warn');
+        break;
+      }
+      case 'supershot': {
+        // spy and robber both there: chance decides which one; the other one if the first is out of reach
+        const targets = this.superTargets(p);
+        if (targets.length > 1 && rnd(2)) targets.reverse();
+        let shot = null;
+        for (const t of targets) if ((shot = this.superShotAt(t, p))) break;
+        const c = this.obj(shot.cannon);
+        c.aim = { angle: shot.angle, powder: shot.powder };
+        this.selected = c.id;
+        // the cannon is fixed for this move: the player cannot switch to another one for the super shot
+        this.superShot = { cannon: c.id, angle: shot.angle, powder: shot.powder, target: shot.target };
+        this.kingToCannon(p, c);
+        this.say(shot.target === 'spy'
+          ? `Königsschuss! Der König von ${p.name} verlässt seine Kammer und richtet selbst ein Geschütz auf den feindlichen Spion. Bis zum nächsten Zug steht er ungeschützt am Geschütz!`
+          : `Königsschuss! Der König von ${p.name} verlässt seine Kammer und richtet selbst ein Geschütz auf den Räuber${this.robber.loot ? ` und seinen Sack mit ${this.robber.loot} Talern` : ''}. Bis zum nächsten Zug steht er ungeschützt am Geschütz!`, 'warn');
         break;
       }
       case 'repair': {

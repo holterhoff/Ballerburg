@@ -7,7 +7,7 @@
 /** Nur für die Darstellung oder nur für dieses Gerät: wird nicht verschickt. */
 const LOCAL = new Set([
   'onChange', 'onTurnEnd', 'mySide', 'particles', 'flashes', 'blasts', 'bolts', 'projectile',
-  'stepAcc', 'aiTimer', 'aiStep', 'turnEnding', 'shake', 'skyFlash', 'terrainDirty', 'selected', 'building',
+  'stepAcc', 'aiTimer', 'aiStep', 'turnEnding', 'shake', 'skyFlash', 'terrainDirty', 'selected', 'building', 'placing',
 ]);
 const BYTES = ['solid', 'interior'];
 
